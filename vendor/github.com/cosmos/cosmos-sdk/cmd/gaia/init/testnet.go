@@ -182,6 +182,11 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
 			return err
 		}
 
+		fmt.Printf("nodeDirName: [%s]\n", nodeDirName)
+		fmt.Printf("clientDir: [%s]\n", clientDir)
+		fmt.Printf("addr: [%s]\n", addr.String())
+		fmt.Printf("secret: [%s]\n\n", secret)
+
 		info := map[string]string{"secret": secret}
 
 		cliPrint, err := json.Marshal(info)
