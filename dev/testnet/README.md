@@ -82,3 +82,7 @@ cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
  
 
 #### 新加入的节点vote power均为0
+
+
+## 
+* 基础货币stake

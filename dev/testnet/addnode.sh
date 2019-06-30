@@ -44,7 +44,7 @@ if [ -z "${INPUT_INDEX}" ]; then
     exit
 fi
 
-NAME=node${INPUT_INDEX}
+NODE_ID=node${INPUT_INDEX}
 let p2p_port=${BASE_PORT_PREFIX}+${INPUT_INDEX}*100+${P2P_PORT_SUFFIX}
 let rpc_port=${BASE_PORT_PREFIX}+${INPUT_INDEX}*100+${RPC_PORT_SUFFIX}
 
@@ -81,9 +81,9 @@ function init {
         exit
     fi
 
-    if [ -d ${COSMOS_NET_CACHE}/${NAME} ]; then
+    if [ -d ${COSMOS_NET_CACHE}/${NODE_ID} ]; then
         echo "Invalid index!"
-        echo "<${COSMOS_NET_CACHE}/${NAME}> already exists. Use '-n' to try another index."
+        echo "<${COSMOS_NET_CACHE}/${NODE_ID}> already exists. Use '-n' to try another index."
         echo "For example: ./addnewnode.sh -n 9 -s ${seed_addr}"
         exit
     fi
@@ -95,8 +95,7 @@ function init {
         exit
     fi
 
-    ${COSMOS_BIN}/${BIN_NAME} init -o --home ${COSMOS_NET_CACHE}/${NAME}/gaiad  <<EOF
-EOF
+    ${COSMOS_BIN}/${BIN_NAME} init ${NODE_ID} -o --chain-id testchain --home ${COSMOS_NET_CACHE}/${NODE_ID}/gaiad
 }
 
 
@@ -105,9 +104,10 @@ function start {
     init
     echo "init new node done"
 
+#    exit
     echo "copy the genesis file..."
-    rm ${COSMOS_NET_CACHE}/${NAME}/gaiad/config/genesis.json
-    cp ${COSMOS_NET_CACHE}/node0/gaiad/config/genesis.json ${COSMOS_NET_CACHE}/${NAME}/gaiad/config/
+    rm ${COSMOS_NET_CACHE}/${NODE_ID}/gaiad/config/genesis.json
+    cp ${COSMOS_NET_CACHE}/node0/gaiad/config/genesis.json ${COSMOS_NET_CACHE}/${NODE_ID}/gaiad/config/
     echo "copy the genesis file done"
 
     echo "start new node..."
@@ -115,14 +115,14 @@ function start {
     rpcport=$2
     seednode=$3
 
-    echo "${BIN_NAME} --home ${COSMOS_NET_CACHE}/${NAME}/gaiad  start --p2p.laddr tcp://${IP}:${p2pport} --p2p.seeds ${seednode} --rpc.laddr tcp://${IP}:${rpcport}"
+    echo "${BIN_NAME} --home ${COSMOS_NET_CACHE}/${NODE_ID}/gaiad  start --p2p.laddr tcp://${IP}:${p2pport} --p2p.seeds ${seednode} --rpc.laddr tcp://${IP}:${rpcport}"
 
     ${COSMOS_BIN}/${BIN_NAME} start\
-    --home ${COSMOS_NET_CACHE}/${NAME}/gaiad \
+    --home ${COSMOS_NET_CACHE}/${NODE_ID}/gaiad \
     --p2p.laddr tcp://${IP}:${p2pport} \
     --p2p.seeds ${seednode} \
     --p2p.addr_book_strict=false\
-    --rpc.laddr tcp://${IP}:${rpcport} > ${COSMOS_NET_CACHE}/${BIN_NAME}.${NAME}.log 2>&1 &
+    --rpc.laddr tcp://${IP}:${rpcport} > ${COSMOS_NET_CACHE}/${BIN_NAME}.${NODE_ID}.log 2>&1 &
 
     echo "start new node done"
 }

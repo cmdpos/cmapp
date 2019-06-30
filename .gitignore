@@ -1,0 +1,39 @@
+# Local build binaries
+node-cli/node-cli
+*.pyc
+cache
+/build/*
+/gotools/build/*
+/bin
+.idea
+*.iml
+.DS_Store
+tags
+.tags
+.vagrant/
+/build
+.idea
+# Emacs backup files
+*~
+*#
+.#*
+# bddtest log files
+*.log
+# bddtest coverage files
+bddtests/coverage
+*.cov
+# Makefile dummy artifacts
+.*-dummy
+# go-carpet output files
+go-carpet-coverage*
+# make node-sdk copied files
+sdk/node/lib/protos/*
+report.xml
+build/
+/wkdir
+#/scripts
+
+dbscan
+*_stdout_*
+*appData*
+txnetwork_*
