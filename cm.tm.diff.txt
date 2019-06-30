@@ -1,0 +1,875 @@
+diff --git a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/root.go b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/root.go
+index c51746fc..6d79f75c 100644
+--- a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/root.go
++++ b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/root.go
+@@ -24,8 +24,6 @@ func init() {
+ 
+ func registerFlagsRootCmd(cmd *cobra.Command) {
+ 	cmd.PersistentFlags().String("log_level", config.LogLevel, "Log level")
+-	cmd.PersistentFlags().String("log_file", config.LogFile, "Log file")
+-	cmd.PersistentFlags().Bool("log_stdout", config.LogStdout, "Print log to stdout, rather than a file")
+ }
+ 
+ // ParseConfig retrieves the default environment configuration,
+diff --git a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/run_node.go b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/run_node.go
+index 507855e5..fa63b494 100644
+--- a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/run_node.go
++++ b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/run_node.go
+@@ -38,13 +38,6 @@ func AddNodeFlags(cmd *cobra.Command) {
+ 	cmd.Flags().Bool("p2p.pex", config.P2P.PexReactor, "Enable/disable Peer-Exchange")
+ 	cmd.Flags().Bool("p2p.seed_mode", config.P2P.SeedMode, "Enable/disable seed mode")
+ 	cmd.Flags().String("p2p.private_peer_ids", config.P2P.PrivatePeerIDs, "Comma-delimited private peer IDs")
+-	cmd.Flags().Bool("p2p.addr_book_strict", config.P2P.AddrBookStrict, "Set true for strict address routability rules, Set false for private or local networks") // cmdpos
+-
+-	//pprof flags
+-	cmd.Flags().String("prof_laddr", config.ProfListenAddress, "Node listen address. (0.0.0.0:0 means any interface, any port)")
+-
+-	//db-backend flags
+-	cmd.Flags().String("db_backend", config.DBBackend, "Database backend: leveldb | memdb | cleveldb")
+ 
+ 	// consensus flags
+ 	cmd.Flags().Bool("consensus.create_empty_blocks", config.Consensus.CreateEmptyBlocks, "Set this to false to only produce blocks when there are txs or when the AppHash changes")
+diff --git a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/testnet.go b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/testnet.go
+index 90db4b16..e34b8d30 100644
+--- a/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/testnet.go
++++ b/vendor/github.com/tendermint/tendermint/cmd/tendermint/commands/testnet.go
+@@ -27,7 +27,6 @@ var (
+ 	hostnamePrefix          string
+ 	startingIPAddress       string
+ 	p2pPort                 int
+-	basePort                int
+ )
+ 
+ const (
+@@ -52,7 +51,6 @@ func init() {
+ 		"Starting IP address (192.168.0.1 results in persistent peers list ID0@192.168.0.1:26656, ID1@192.168.0.2:26656, ...)")
+ 	TestnetFilesCmd.Flags().IntVar(&p2pPort, "p2p-port", 26656,
+ 		"P2P Port")
+-	TestnetFilesCmd.Flags().IntVar(&basePort, "base-port", 20056, "P2P Port")
+ }
+ 
+ // TestnetFilesCmd allows initialisation of files for a Tendermint testnet.
+diff --git a/vendor/github.com/tendermint/tendermint/config/config.go b/vendor/github.com/tendermint/tendermint/config/config.go
+index a517b6a3..540012a5 100644
+--- a/vendor/github.com/tendermint/tendermint/config/config.go
++++ b/vendor/github.com/tendermint/tendermint/config/config.go
+@@ -49,10 +49,6 @@ var (
+ 
+ 	defaultNodeKeyPath  = filepath.Join(defaultConfigDir, defaultNodeKeyName)
+ 	defaultAddrBookPath = filepath.Join(defaultConfigDir, defaultAddrBookName)
+-
+-	DefaultLogPath     = os.ExpandEnv("$HOME/.gaiadd")
+-	defaultLogFileName = "gaiadd.log"
+-	defaultLogFile     = filepath.Join(DefaultLogPath, defaultLogFileName)
+ )
+ 
+ var (
+@@ -107,12 +103,6 @@ func (cfg *Config) SetRoot(root string) *Config {
+ 	cfg.P2P.RootDir = root
+ 	cfg.Mempool.RootDir = root
+ 	cfg.Consensus.RootDir = root
+-
+-	// gaiad change LogFile base on cfg.BaseConfig.RootDir
+-	if root != DefaultLogPath && cfg.BaseConfig.LogFile == defaultLogFile {
+-		cfg.BaseConfig.LogFile = filepath.Join(root, defaultLogFileName)
+-	}
+-
+ 	return cfg
+ }
+ 
+@@ -176,12 +166,6 @@ type BaseConfig struct {
+ 	// Output format: 'plain' (colored text) or 'json'
+ 	LogFormat string `mapstructure:"log_format"`
+ 
+-	// Logging file directory
+-	LogFile string `mapstructure:"log_file"`
+-
+-	// Logging stdout
+-	LogStdout bool `mapstructure:"log_stdout"`
+-
+ 	// Path to the JSON file containing the initial validator set and other meta data
+ 	Genesis string `mapstructure:"genesis_file"`
+ 
+@@ -221,12 +205,10 @@ func DefaultBaseConfig() BaseConfig {
+ 		ABCI:               "socket",
+ 		LogLevel:           DefaultPackageLogLevels(),
+ 		LogFormat:          LogFormatPlain,
+-		LogFile:            defaultLogFile,
+-		LogStdout:          true,
+-		ProfListenAddress:  "localhost:6060",
++		ProfListenAddress:  "",
+ 		FastSync:           true,
+ 		FilterPeers:        false,
+-		DBBackend:          "cleveldb",
++		DBBackend:          "leveldb",
+ 		DBPath:             "data",
+ 	}
+ }
+@@ -360,7 +342,7 @@ type RPCConfig struct {
+ // DefaultRPCConfig returns a default configuration for the RPC server
+ func DefaultRPCConfig() *RPCConfig {
+ 	return &RPCConfig{
+-		ListenAddress:          "tcp://0.0.0.0:26657", //cmdpos
++		ListenAddress:          "tcp://0.0.0.0:26657",
+ 		CORSAllowedOrigins:     []string{},
+ 		CORSAllowedMethods:     []string{"HEAD", "GET", "POST"},
+ 		CORSAllowedHeaders:     []string{"Origin", "Accept", "Content-Type", "X-Requested-With", "X-Server-Time"},
+@@ -370,7 +352,7 @@ func DefaultRPCConfig() *RPCConfig {
+ 		Unsafe:             false,
+ 		MaxOpenConnections: 900,
+ 
+-		MaxSubscriptionClients:    5000,
++		MaxSubscriptionClients:    100,
+ 		MaxSubscriptionsPerClient: 5,
+ 		TimeoutBroadcastTxCommit:  10 * time.Second,
+ 	}
+@@ -493,7 +475,7 @@ type P2PConfig struct {
+ // DefaultP2PConfig returns a default configuration for the peer-to-peer layer
+ func DefaultP2PConfig() *P2PConfig {
+ 	return &P2PConfig{
+-		ListenAddress:           "tcp://0.0.0.0:26656", //cmdpos
++		ListenAddress:           "tcp://0.0.0.0:26656",
+ 		ExternalAddress:         "",
+ 		UPNP:                    false,
+ 		AddrBook:                defaultAddrBookPath,
+diff --git a/vendor/github.com/tendermint/tendermint/config/toml.go b/vendor/github.com/tendermint/tendermint/config/toml.go
+index fa514499..9ce7e76c 100644
+--- a/vendor/github.com/tendermint/tendermint/config/toml.go
++++ b/vendor/github.com/tendermint/tendermint/config/toml.go
+@@ -93,12 +93,6 @@ log_level = "{{ .BaseConfig.LogLevel }}"
+ # Output format: 'plain' (colored text) or 'json'
+ log_format = "{{ .BaseConfig.LogFormat }}"
+ 
+-# Log file
+-log_file = "{{ .BaseConfig.LogFile }}"
+-
+-# Log stdout
+-log_stdout = "{{ .BaseConfig.LogStdout }}"
+-
+ ##### additional base config options #####
+ 
+ # Path to the JSON file containing the initial validator set and other meta data
+diff --git a/vendor/github.com/tendermint/tendermint/libs/cli/flags/log_level.go b/vendor/github.com/tendermint/tendermint/libs/cli/flags/log_level.go
+index 40fc0ac2..156106a5 100644
+--- a/vendor/github.com/tendermint/tendermint/libs/cli/flags/log_level.go
++++ b/vendor/github.com/tendermint/tendermint/libs/cli/flags/log_level.go
+@@ -84,7 +84,3 @@ func ParseLogLevel(lvl string, logger log.Logger, defaultLogLevelValue string) (
+ 
+ 	return log.NewFilter(logger, options...), nil
+ }
+-
+-func UpdateLogLevel(lvl string) error {
+-	return log.UpdateLogLevel(lvl)
+-}
+diff --git a/vendor/github.com/tendermint/tendermint/libs/log/filter.go b/vendor/github.com/tendermint/tendermint/libs/log/filter.go
+index b771d712..b71447ed 100644
+--- a/vendor/github.com/tendermint/tendermint/libs/log/filter.go
++++ b/vendor/github.com/tendermint/tendermint/libs/log/filter.go
+@@ -1,10 +1,6 @@
+ package log
+ 
+-import (
+-	"fmt"
+-	"strings"
+-	"sync"
+-)
++import "fmt"
+ 
+ type level byte
+ 
+@@ -12,37 +8,13 @@ const (
+ 	levelDebug level = 1 << iota
+ 	levelInfo
+ 	levelError
+-	keyvalsSplit = "&"
+ )
+ 
+-type allowedKeyvalMap struct {
+-	sync.RWMutex
+-	data map[keyval]level // When key-value match, use this level
+-}
+-
+-func (a *allowedKeyvalMap) set(key interface{}, value interface{}, lv level) {
+-	a.Lock()
+-	defer a.Unlock()
+-	a.data[keyval{key, value}] = lv
+-}
+-
+-func (a *allowedKeyvalMap) traverse(f func(keyval, level) (bool, *filter)) (bool, *filter) {
+-	a.RLock()
+-	defer a.RUnlock()
+-	for kv, allowed := range a.data {
+-		re, f := f(kv, allowed)
+-		if re {
+-			return re, f
+-		}
+-	}
+-	return false, nil
+-}
+-
+ type filter struct {
+ 	next             Logger
+-	allowed          level             // XOR'd levels for default case
+-	initiallyAllowed level             // XOR'd levels for initial case
+-	allowedKV        *allowedKeyvalMap // When key-value match, use this level
++	allowed          level            // XOR'd levels for default case
++	initiallyAllowed level            // XOR'd levels for initial case
++	allowedKeyvals   map[keyval]level // When key-value match, use this level
+ }
+ 
+ type keyval struct {
+@@ -50,91 +22,18 @@ type keyval struct {
+ 	value interface{}
+ }
+ 
+-type CacheLoggers struct {
+-	sync.RWMutex
+-	allowedKV  *allowedKeyvalMap
+-	loggersMap map[string]Logger
+-}
+-
+-var once sync.Once
+-var cacheLoggers *CacheLoggers
+-
+-func (cl *CacheLoggers) update(defaultOption Option, options ...Option) {
+-
+-	cl.Lock()
+-	defer cl.Unlock()
+-
+-	for _, option := range options {
+-		option(&filter{allowedKV: cl.allowedKV})
+-	}
+-
+-	for k, v := range cl.loggersMap {
+-		l, ok := v.(*filter)
+-		if !ok {
+-			continue
+-		}
+-
+-		if defaultOption != nil {
+-			defaultOption(l)
+-		}
+-
+-		l.initiallyAllowed = l.allowed // allowed: default * allowed
+-		ks := strings.Split(k, keyvalsSplit)
+-		l.UpdateWith(ks...)
+-	}
+-}
+-
+-func UpdateFilter(defaultOption Option, options ...Option) {
+-	loggers := getLoggers()
+-	loggers.update(defaultOption, options...)
+-}
+-
+-func (l *CacheLoggers) get(key string) Logger {
+-	l.RLock()
+-	defer l.RUnlock()
+-	if value, ok := l.loggersMap[key]; ok {
+-		return value
+-	}
+-	return nil
+-}
+-
+-func (l *CacheLoggers) set(key string, logger Logger) {
+-	l.Lock()
+-	defer l.Unlock()
+-	l.loggersMap[key] = logger
+-}
+-
+-func getLoggers() *CacheLoggers {
+-	once.Do(func() {
+-		cacheLoggers = &CacheLoggers{
+-			loggersMap: make(map[string]Logger),
+-		}
+-	})
+-	return cacheLoggers
+-}
+-
+ // NewFilter wraps next and implements filtering. See the commentary on the
+ // Option functions for a detailed description of how to configure levels. If
+ // no options are provided, all leveled log events created with Debug, Info or
+ // Error helper methods are squelched.
+ func NewFilter(next Logger, options ...Option) Logger {
+-
+-	allowedKV := &allowedKeyvalMap{data: make(map[keyval]level)}
+-	kv := keyval{"module", ""}
+-	allowedKV.data[kv] = levelError
+-
+-	loggerMap := getLoggers()
+-	loggerMap.allowedKV = allowedKV
+-
+ 	l := &filter{
+-		next:      next,
+-		allowedKV: loggerMap.allowedKV,
++		next:           next,
++		allowedKeyvals: make(map[keyval]level),
+ 	}
+-
+ 	for _, option := range options {
+ 		option(l)
+ 	}
+-
+ 	l.initiallyAllowed = l.allowed
+ 	return l
+ }
+@@ -179,107 +78,45 @@ func (l *filter) Error(msg string, keyvals ...interface{}) {
+ //     logger = log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("module", "crypto"), log.AllowNoneWith("user", "Sam"))
+ //		 logger.With("user", "Sam").With("module", "crypto").Info("Hello") # produces "I... Hello module=crypto user=Sam"
+ func (l *filter) With(keyvals ...interface{}) Logger {
+-	keyInallowedKeyvalMap := false
+-	var keyvalsStr string
+-	for _, kv := range keyvals {
+-		s, ok := kv.(string)
+-		if !ok {
+-			return &filter{
+-				next:             l.next.With(keyvals...),
+-				allowed:          l.allowed, // simply continue with the current level
+-				allowedKV:        l.allowedKV,
+-				initiallyAllowed: l.initiallyAllowed,
+-			}
+-		}
+-		keyvalsStr += s
+-		keyvalsStr += keyvalsSplit
+-	}
+-	keyvalsStr = strings.Trim(keyvalsStr, keyvalsSplit)
+-	loggers := getLoggers()
+-	log := loggers.get(keyvalsStr)
+-	if log != nil {
+-		return log
+-	}
++	keyInAllowedKeyvals := false
+ 
+ 	for i := len(keyvals) - 2; i >= 0; i -= 2 {
+-
+-		traverseFunc := func(kv keyval, allowed level) (bool, *filter) {
++		for kv, allowed := range l.allowedKeyvals {
+ 			if keyvals[i] == kv.key {
+-				keyInallowedKeyvalMap = true
++				keyInAllowedKeyvals = true
+ 				// Example:
+ 				//		logger = log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("module", "crypto"))
+ 				//		logger.With("module", "crypto")
+ 				if keyvals[i+1] == kv.value {
+-					f := &filter{
++					return &filter{
+ 						next:             l.next.With(keyvals...),
+ 						allowed:          allowed, // set the desired level
+-						allowedKV:        l.allowedKV,
++						allowedKeyvals:   l.allowedKeyvals,
+ 						initiallyAllowed: l.initiallyAllowed,
+ 					}
+-					return true, f
+ 				}
+ 			}
+-			return false, nil
+-		}
+-
+-		re, f := l.allowedKV.traverse(traverseFunc)
+-		if re {
+-			loggers.set(keyvalsStr, f)
+-			return f
+ 		}
+ 	}
+ 
+ 	// Example:
+ 	//		logger = log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("module", "crypto"))
+ 	//		logger.With("module", "main")
+-	if keyInallowedKeyvalMap {
+-		f := &filter{
++	if keyInAllowedKeyvals {
++		return &filter{
+ 			next:             l.next.With(keyvals...),
+ 			allowed:          l.initiallyAllowed, // return back to initially allowed
+-			allowedKV:        l.allowedKV,
++			allowedKeyvals:   l.allowedKeyvals,
+ 			initiallyAllowed: l.initiallyAllowed,
+ 		}
+-		loggers.set(keyvalsStr, f)
+-		return f
+ 	}
+ 
+-	f := &filter{
++	return &filter{
+ 		next:             l.next.With(keyvals...),
+ 		allowed:          l.allowed, // simply continue with the current level
+-		allowedKV:        l.allowedKV,
++		allowedKeyvals:   l.allowedKeyvals,
+ 		initiallyAllowed: l.initiallyAllowed,
+ 	}
+-	return f
+-}
+-
+-func (l *filter) UpdateWith(keyvals ...string) {
+-	keyInallowedKeyvalMap := false
+-
+-	for i := len(keyvals) - 2; i >= 0; i -= 2 {
+-
+-		traverseFunc := func(kv keyval, allowed level) (bool, *filter) {
+-			if keyvals[i] != kv.key {
+-				return false, nil
+-			}
+-
+-			keyInallowedKeyvalMap = true
+-
+-			if keyvals[i+1] != kv.value {
+-				return false, nil
+-			}
+-			l.allowed = allowed // set the desired level
+-			return true, nil
+-		}
+-
+-		re, _ := l.allowedKV.traverse(traverseFunc)
+-		if re {
+-			return
+-		}
+-	}
+-
+-	if keyInallowedKeyvalMap {
+-		l.allowed = l.initiallyAllowed // return back to initially allowed
+-	}
+ }
+ 
+ //--------------------------------------------------------------------------------
+@@ -330,92 +167,25 @@ func AllowNone() Option {
+ }
+ 
+ func allowed(allowed level) Option {
+-	return func(l *filter) {
+-		l.allowed = allowed
+-	}
++	return func(l *filter) { l.allowed = allowed }
+ }
+ 
+ // AllowDebugWith allows error, info and debug level log events to pass for a specific key value pair.
+ func AllowDebugWith(key interface{}, value interface{}) Option {
+-	return func(l *filter) {
+-		l.allowedKV.set(key, value, levelError|levelInfo|levelDebug)
+-	}
++	return func(l *filter) { l.allowedKeyvals[keyval{key, value}] = levelError | levelInfo | levelDebug }
+ }
+ 
+ // AllowInfoWith allows error and info level log events to pass for a specific key value pair.
+ func AllowInfoWith(key interface{}, value interface{}) Option {
+-	return func(l *filter) {
+-		l.allowedKV.set(key, value, levelError|levelInfo)
+-	}
++	return func(l *filter) { l.allowedKeyvals[keyval{key, value}] = levelError | levelInfo }
+ }
+ 
+ // AllowErrorWith allows only error level log events to pass for a specific key value pair.
+ func AllowErrorWith(key interface{}, value interface{}) Option {
+-	return func(l *filter) {
+-		l.allowedKV.set(key, value, levelError)
+-	}
++	return func(l *filter) { l.allowedKeyvals[keyval{key, value}] = levelError }
+ }
+ 
+ // AllowNoneWith allows no leveled log events to pass for a specific key value pair.
+ func AllowNoneWith(key interface{}, value interface{}) Option {
+-	return func(l *filter) {
+-		l.allowedKV.set(key, value, 0)
+-	}
+-}
+-
+-func UpdateLogLevel(lvl string) error {
+-	if lvl == "" {
+-		return fmt.Errorf("Empty log level")
+-	}
+-
+-	defaultLogLevelKey := "*"
+-	l := lvl
+-
+-	// prefix simple one word levels (e.g. "info") with "*"
+-	if !strings.Contains(l, ":") {
+-		l = defaultLogLevelKey + ":" + l
+-	}
+-
+-	options := make([]Option, 0)
+-
+-	var defaultOption Option // for module *
+-	var err error
+-
+-	list := strings.Split(l, ",")
+-	for _, item := range list {
+-		moduleAndLevel := strings.Split(item, ":")
+-
+-		if len(moduleAndLevel) != 2 {
+-			return fmt.Errorf("Expected list in a form of \"module:level\" pairs, given pair %s, list %s", item, list)
+-		}
+-
+-		module := moduleAndLevel[0]
+-		level := moduleAndLevel[1]
+-
+-		var option Option
+-		if module == defaultLogLevelKey {
+-			defaultOption, err = AllowLevel(level)
+-			if err != nil {
+-				return err
+-			}
+-		} else {
+-			switch level {
+-			case "debug":
+-				option = AllowDebugWith("module", module)
+-			case "info":
+-				option = AllowInfoWith("module", module)
+-			case "error":
+-				option = AllowErrorWith("module", module)
+-			case "none":
+-				option = AllowNoneWith("module", module)
+-			default:
+-				return fmt.Errorf("Expected either \"info\", \"debug\", \"error\" or \"none\" log level, given %s (pair %s, list %s)",
+-					level, item, list)
+-			}
+-			options = append(options, option)
+-		}
+-	}
+-
+-	UpdateFilter(defaultOption, options...)
+-	return nil
++	return func(l *filter) { l.allowedKeyvals[keyval{key, value}] = 0 }
+ }
+diff --git a/vendor/github.com/tendermint/tendermint/libs/log/filter_test.go b/vendor/github.com/tendermint/tendermint/libs/log/filter_test.go
+index 1eb89bc0..f9957f04 100644
+--- a/vendor/github.com/tendermint/tendermint/libs/log/filter_test.go
++++ b/vendor/github.com/tendermint/tendermint/libs/log/filter_test.go
+@@ -1,117 +1,118 @@
+-package log
++package log_test
+ 
+ import (
+-	"fmt"
+-	"os"
++	"bytes"
++	"strings"
+ 	"testing"
+ 
+-	"github.com/stretchr/testify/require"
+-
+-	"github.com/go-kit/kit/log"
++	"github.com/tendermint/tendermint/libs/log"
+ )
+ 
+-func TestFilter_With(t *testing.T) {
+-	logger := NewTMLogger(log.NewSyncWriter(os.Stdout))
+-	logger = NewFilter(logger, AllowError(), AllowInfoWith("module", "test1"), AllowInfoWith("module", "test2"))
++func TestVariousLevels(t *testing.T) {
++	testCases := []struct {
++		name    string
++		allowed log.Option
++		want    string
++	}{
++		{
++			"AllowAll",
++			log.AllowAll(),
++			strings.Join([]string{
++				`{"_msg":"here","level":"debug","this is":"debug log"}`,
++				`{"_msg":"here","level":"info","this is":"info log"}`,
++				`{"_msg":"here","level":"error","this is":"error log"}`,
++			}, "\n"),
++		},
++		{
++			"AllowDebug",
++			log.AllowDebug(),
++			strings.Join([]string{
++				`{"_msg":"here","level":"debug","this is":"debug log"}`,
++				`{"_msg":"here","level":"info","this is":"info log"}`,
++				`{"_msg":"here","level":"error","this is":"error log"}`,
++			}, "\n"),
++		},
++		{
++			"AllowInfo",
++			log.AllowInfo(),
++			strings.Join([]string{
++				`{"_msg":"here","level":"info","this is":"info log"}`,
++				`{"_msg":"here","level":"error","this is":"error log"}`,
++			}, "\n"),
++		},
++		{
++			"AllowError",
++			log.AllowError(),
++			strings.Join([]string{
++				`{"_msg":"here","level":"error","this is":"error log"}`,
++			}, "\n"),
++		},
++		{
++			"AllowNone",
++			log.AllowNone(),
++			``,
++		},
++	}
+ 
+-	logger1 := logger.With("module", "test3")
+-	f, ok := logger1.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError, f.allowed)
+-}
++	for _, tc := range testCases {
++		t.Run(tc.name, func(t *testing.T) {
++			var buf bytes.Buffer
++			logger := log.NewFilter(log.NewTMJSONLogger(&buf), tc.allowed)
+ 
+-func TestFilter_UpdateWith(t *testing.T) {
+-	logger := NewTMLogger(log.NewSyncWriter(os.Stdout))
+-	logger = NewFilter(logger, AllowError(), AllowInfoWith("module", "test1"), AllowInfoWith("module", "test2"))
+-	cacheLoggers = &CacheLoggers{
+-		loggersMap: make(map[string]Logger),
+-		allowedKV:  cacheLoggers.allowedKV,
+-	}
++			logger.Debug("here", "this is", "debug log")
++			logger.Info("here", "this is", "info log")
++			logger.Error("here", "this is", "error log")
+ 
+-	logger3 := logger.With("module", "test3")
+-	f, ok := logger3.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError, f.allowed)
+-
+-	defaultOption := AllowInfo()
+-	options := []Option{AllowDebugWith("module", "test1")}
+-	UpdateFilter(defaultOption, options...)
+-
+-	logger1 := logger.With("module", "test1")
+-	f, ok = logger1.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError|levelInfo|levelDebug, f.allowed)
+-
+-	logger2 := logger.With("module", "test2")
+-	f, ok = logger2.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError|levelInfo, f.allowed)
+-
+-	f, ok = logger3.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError|levelInfo, f.allowed)
+-
+-	defaultOption = AllowInfo()
+-	options = []Option{AllowDebugWith("module", "test3")}
+-	UpdateFilter(defaultOption, options...)
+-	f, ok = logger3.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError|levelInfo|levelDebug, f.allowed)
+-	require.Equal(t, 3, len(f.allowedKV.data))
++			if want, have := tc.want, strings.TrimSpace(buf.String()); want != have {
++				t.Errorf("\nwant:\n%s\nhave:\n%s", want, have)
++			}
++		})
++	}
+ }
+ 
+-func TestConcurrent(t *testing.T) {
+-	logger := NewTMLogger(log.NewSyncWriter(os.Stdout))
+-	logger = NewFilter(logger, AllowError(), AllowInfoWith("module", "test1"), AllowInfoWith("module", "test2"))
+-	cacheLoggers = &CacheLoggers{
+-		loggersMap: make(map[string]Logger),
+-		allowedKV:  cacheLoggers.allowedKV,
++func TestLevelContext(t *testing.T) {
++	var buf bytes.Buffer
++
++	logger := log.NewTMJSONLogger(&buf)
++	logger = log.NewFilter(logger, log.AllowError())
++	logger = logger.With("context", "value")
++
++	logger.Error("foo", "bar", "baz")
++	if want, have := `{"_msg":"foo","bar":"baz","context":"value","level":"error"}`, strings.TrimSpace(buf.String()); want != have {
++		t.Errorf("\nwant '%s'\nhave '%s'", want, have)
+ 	}
+ 
+-	chan1 := make(chan struct{})
+-	chan2 := make(chan struct{})
+-
+-	round := 2000
+-
+-	go func() {
+-		for i := 0; i < round; i++ {
+-			//fmt.Printf("chan 1: %d\n", i)
+-			tmp := logger.With("module", fmt.Sprintf("test%d", i))
+-			tmp.Error("kv")
+-			tmp.Info("kv")
+-			tmp.Debug("kv")
+-		}
+-		chan1 <- struct{}{}
+-	}()
+-
+-	go func() {
+-		for i := 0; i < round; i++ {
+-			//fmt.Printf("chan 2: %d\n", i)
+-			UpdateLogLevel(fmt.Sprintf("test%d:info,main:info,state:info,order:info,distribution:debug,auth:info,token:info,*:error", i))
+-			UpdateLogLevel(fmt.Sprintf("test%d:debug,*.debug", i))
+-			UpdateLogLevel(fmt.Sprintf("test%d:erro,*info", i))
+-		}
+-		chan2 <- struct{}{}
+-	}()
+-
+-	<-chan1
+-	<-chan2
++	buf.Reset()
++	logger.Info("foo", "bar", "baz")
++	if want, have := ``, strings.TrimSpace(buf.String()); want != have {
++		t.Errorf("\nwant '%s'\nhave '%s'", want, have)
++	}
+ }
+ 
+-func TestFilter_UpdateWith2(t *testing.T) {
+-	logger := NewTMLogger(log.NewSyncWriter(os.Stdout))
+-	logger = NewFilter(logger, AllowError())
+-	cacheLoggers = &CacheLoggers{
+-		loggersMap: make(map[string]Logger),
+-		allowedKV:  cacheLoggers.allowedKV,
++func TestVariousAllowWith(t *testing.T) {
++	var buf bytes.Buffer
++
++	logger := log.NewTMJSONLogger(&buf)
++
++	logger1 := log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("context", "value"))
++	logger1.With("context", "value").Info("foo", "bar", "baz")
++	if want, have := `{"_msg":"foo","bar":"baz","context":"value","level":"info"}`, strings.TrimSpace(buf.String()); want != have {
++		t.Errorf("\nwant '%s'\nhave '%s'", want, have)
+ 	}
+ 
+-	logger3 := logger.With("module", "test3")
+-	f, ok := logger3.(*filter)
+-	require.True(t, ok)
+-	require.Equal(t, levelError, f.allowed)
++	buf.Reset()
+ 
+-	UpdateLogLevel(fmt.Sprintf("test3:debug"))
+-	require.Equal(t, levelError|levelInfo|levelDebug, f.allowed)
++	logger2 := log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("context", "value"), log.AllowNoneWith("user", "Sam"))
++	logger2.With("context", "value", "user", "Sam").Info("foo", "bar", "baz")
++	if want, have := ``, strings.TrimSpace(buf.String()); want != have {
++		t.Errorf("\nwant '%s'\nhave '%s'", want, have)
++	}
++
++	buf.Reset()
+ 
++	logger3 := log.NewFilter(logger, log.AllowError(), log.AllowInfoWith("context", "value"), log.AllowNoneWith("user", "Sam"))
++	logger3.With("user", "Sam").With("context", "value").Info("foo", "bar", "baz")
++	if want, have := `{"_msg":"foo","bar":"baz","context":"value","level":"info","user":"Sam"}`, strings.TrimSpace(buf.String()); want != have {
++		t.Errorf("\nwant '%s'\nhave '%s'", want, have)
++	}
+ }
+diff --git a/vendor/github.com/tendermint/tendermint/lite/proxy/verifier.go b/vendor/github.com/tendermint/tendermint/lite/proxy/verifier.go
+index 021661c3..b7c11f18 100644
+--- a/vendor/github.com/tendermint/tendermint/lite/proxy/verifier.go
++++ b/vendor/github.com/tendermint/tendermint/lite/proxy/verifier.go
+@@ -1,7 +1,6 @@
+ package proxy
+ 
+ import (
+-	"github.com/tendermint/tendermint/config"
+ 	cmn "github.com/tendermint/tendermint/libs/common"
+ 	dbm "github.com/tendermint/tendermint/libs/db"
+ 	log "github.com/tendermint/tendermint/libs/log"
+@@ -13,10 +12,6 @@ func NewVerifier(chainID, rootDir string, client lclient.SignStatusClient, logge
+ 
+ 	logger = logger.With("module", "lite/proxy")
+ 	logger.Info("lite/proxy/NewVerifier()...", "chainID", chainID, "rootDir", rootDir, "client", client)
+-	err := cmn.EnsureDir(rootDir, config.DefaultDirPerm)
+-	if err != nil {
+-		return nil, cmn.ErrorWrap(err, "ensure db path")
+-	}
+ 
+ 	memProvider := lite.NewDBProvider("trusted.mem", dbm.NewMemDB()).SetLimit(cacheSize)
+ 	lvlProvider := lite.NewDBProvider("trusted.lvl", dbm.NewDB("trust-base", dbm.LevelDBBackend, rootDir))
+@@ -29,7 +24,7 @@ func NewVerifier(chainID, rootDir string, client lclient.SignStatusClient, logge
+ 	cert.SetLogger(logger) // Sets logger recursively.
+ 
+ 	// TODO: Make this more secure, e.g. make it interactive in the console?
+-	_, err = trust.LatestFullCommit(chainID, 1, 1<<63-1)
++	_, err := trust.LatestFullCommit(chainID, 1, 1<<63-1)
+ 	if err != nil {
+ 		logger.Info("lite/proxy/NewVerifier found no trusted full commit, initializing from source from height 1...")
+ 		fc, err := source.LatestFullCommit(chainID, 1, 1)
+diff --git a/vendor/github.com/tendermint/tendermint/node/node.go b/vendor/github.com/tendermint/tendermint/node/node.go
+index 74972875..f3f9dca3 100644
+--- a/vendor/github.com/tendermint/tendermint/node/node.go
++++ b/vendor/github.com/tendermint/tendermint/node/node.go
+@@ -15,8 +15,8 @@ import (
+ 	"github.com/prometheus/client_golang/prometheus"
+ 	"github.com/prometheus/client_golang/prometheus/promhttp"
+ 	"github.com/rs/cors"
+-	"github.com/spf13/viper"
+-	"github.com/tendermint/go-amino"
++
++	amino "github.com/tendermint/go-amino"
+ 	abci "github.com/tendermint/tendermint/abci/types"
+ 	bc "github.com/tendermint/tendermint/blockchain"
+ 	cfg "github.com/tendermint/tendermint/config"
+@@ -59,8 +59,7 @@ type DBProvider func(*DBContext) (dbm.DB, error)
+ // DefaultDBProvider returns a database using the DBBackend and DBDir
+ // specified in the ctx.Config.
+ func DefaultDBProvider(ctx *DBContext) (dbm.DB, error) {
+-	db_backend := viper.GetString("db_backend")
+-	dbType := dbm.DBBackendType(db_backend)
++	dbType := dbm.DBBackendType(ctx.Config.DBBackend)
+ 	return dbm.NewDB(ctx.ID, dbType, ctx.Config.DBDir()), nil
+ }
+ 
+@@ -507,7 +506,7 @@ func NewNode(config *cfg.Config,
+ 	sw.SetAddrBook(addrBook)
+ 
+ 	// run the profile server
+-	profileHost := viper.GetString("prof_laddr")
++	profileHost := config.ProfListenAddress
+ 	if profileHost != "" {
+ 		go func() {
+ 			logger.Error("Profile server", "err", http.ListenAndServe(profileHost, nil))
+diff --git a/vendor/github.com/tendermint/tendermint/p2p/switch.go b/vendor/github.com/tendermint/tendermint/p2p/switch.go
+index ef03cf78..a07f70ce 100644
+--- a/vendor/github.com/tendermint/tendermint/p2p/switch.go
++++ b/vendor/github.com/tendermint/tendermint/p2p/switch.go
+@@ -389,7 +389,6 @@ func (sw *Switch) MarkPeerAsGood(peer Peer) {
+ // Used to dial peers from config on startup or from unsafe-RPC (trusted sources).
+ // TODO: remove addrBook arg since it's now set on the switch
+ func (sw *Switch) DialPeersAsync(addrBook AddrBook, peers []string, persistent bool) error {
+-	fmt.Printf("DialPeersAsync: peers[%s]\n", peers)
+ 	netAddrs, errs := NewNetAddressStrings(peers)
+ 	// only log errors, dial correct addresses
+ 	for _, err := range errs {
+diff --git a/vendor/github.com/tendermint/tendermint/p2p/transport.go b/vendor/github.com/tendermint/tendermint/p2p/transport.go
+index ae3ce338..8868d8e4 100644
+--- a/vendor/github.com/tendermint/tendermint/p2p/transport.go
++++ b/vendor/github.com/tendermint/tendermint/p2p/transport.go
+@@ -259,13 +259,10 @@ func (mt *MultiplexTransport) acceptPeers() {
+ 				nodeInfo   NodeInfo
+ 				secretConn *conn.SecretConnection
+ 			)
+-			fmt.Printf("AcceptPeers: %s\n", c.RemoteAddr().String())
+ 
+ 			err := mt.filterConn(c)
+ 			if err == nil {
+ 				secretConn, nodeInfo, err = mt.upgrade(c, nil)
+-			} else {
+-				fmt.Printf("FilterConn: %s, err: %s\n", c.RemoteAddr().String(), err)
+ 			}
+ 
+ 			select {
+@@ -299,7 +296,7 @@ func (mt *MultiplexTransport) filterConn(c net.Conn) (err error) {
+ 			_ = c.Close()
+ 		}
+ 	}()
+-	return nil // cmdpos: do not filter for testnet
++	return nil // oak: do not filter for testnet
+ 
+ 	// Reject if connection is already present.
+ 	if mt.conns.Has(c) {
+@@ -346,9 +343,6 @@ func (mt *MultiplexTransport) upgrade(
+ 			_ = mt.cleanup(c)
+ 		}
+ 	}()
+-	if dialedAddr != nil {
+-		fmt.Printf("Dialing: %+v\n", dialedAddr)
+-	}
+ 
+ 	secretConn, err = upgradeSecretConn(c, mt.handshakeTimeout, mt.nodeKey.PrivKey)
+ 	if err != nil {
+@@ -358,9 +352,6 @@ func (mt *MultiplexTransport) upgrade(
+ 			isAuthFailure: true,
+ 		}
+ 	}
+-	if dialedAddr != nil {
+-		fmt.Printf("Successfully connected to addr: %+v\n", dialedAddr)
+-	}
+ 
+ 	// For outgoing conns, ensure connection key matches dialed key.
+ 	connID := PubKeyToID(secretConn.RemotePubKey())
