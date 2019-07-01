@@ -1,10 +1,16 @@
 #!/bin/bash
 
-gaiacli keys add --recover u12  << EOF
-y
-brain humor inform change try spawn region repeat obey orchard slab flag destroy perfect extra actress day short alien submit will imitate copy rack
+
+
+for ((index=0; index<4; index++)) do
+pkey=$(cat cache/node${index}/gaiacli/key_seed.txt)
+gaiacli keys add --recover u${index}  << EOF
+$pkey
 EOF
 
-gaiacli keys add --recover u13  << EOF
-brain humor inform change try spawn region repeat obey orchard slab flag destroy perfect extra actress day short alien submit will imitate copy rack
+gaiacli keys add --recover u${index}  << EOF
+y
+$pkey
 EOF
+done
+

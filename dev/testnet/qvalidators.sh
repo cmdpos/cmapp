@@ -19,12 +19,16 @@ for ((index=0; index<10; index++)) do
         gaiad tendermint show-node-id --home cache/node${index}/gaiad
         gaiad tendermint show-validator --home cache/node${index}/gaiad
         gaiad tendermint show-address --home cache/node${index}/gaiad
+        gaiacli keys show node${index} -a --home cache/node${index}/gaiacli
+        gaiacli keys show node${index} --bech val -a --home cache/node${index}/gaiacli
+        gaiacli keys show node${index} --bech cons -a --home cache/node${index}/gaiacli
+
         echo ""
     fi
 done
 
 
-
+exit
 gaiacli keys add --recover u1  << EOF
 brain humor inform change try spawn region repeat obey orchard slab flag destroy perfect extra actress day short alien submit will imitate copy rack
 EOF

@@ -199,6 +199,11 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
 		if err != nil {
 			return err
 		}
+		// save private key seed words
+		err = writeFile(fmt.Sprintf("%v.txt", "key_seed"), clientDir, []byte(secret))
+		if err != nil {
+			return err
+		}
 
 		// how many node token
 		accTokens := sdk.TokensFromTendermintPower(6000000*int64(i+1))
