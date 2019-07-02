@@ -209,18 +209,21 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
 		accTokens := sdk.TokensFromTendermintPower(6000000*int64(i+1))
 
 		// how many staking token assigned
-		accStakingTokens := sdk.TokensFromTendermintPower(100000*int64(i+1))
+
+		originalNum := int64(100000)
+
+		accStakingTokens := sdk.TokensFromTendermintPower(originalNum*100*int64(i+1))
 		
 		accs = append(accs, app.GenesisAccount{
 			Address: addr,
 			Coins: sdk.Coins{
-				sdk.NewCoin(fmt.Sprintf("%stoken", nodeDirName), accTokens),
+				sdk.NewCoin(fmt.Sprintf("btc"), accTokens),
 				sdk.NewCoin(sdk.DefaultBondDenom, accStakingTokens),
 			},
 		})
-
-		// how many staking token bound
-		valTokens := sdk.TokensFromTendermintPower(2000*int64(i+1))
+		// how many staking token bond
+		bondNum := int64(20)
+		valTokens := sdk.TokensFromTendermintPower(bondNum*100*int64(i+1))
 		msg := staking.NewMsgCreateValidator(
 			sdk.ValAddress(addr),
 			valPubKeys[i],

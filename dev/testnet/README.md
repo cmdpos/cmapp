@@ -1,17 +1,16 @@
-# Testnet Tutorial
 
-## 启动本地测试网
+## 多节点网络环境
 ```sh
 cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
-./testnet.sh -i -s -n 3
+./testnet.sh -i -s -n 4
 ```
-### 参数：
+### 1 参数：
 1. `-i` 执行testnet，初始化网络配置数据:创世块，创世tx，创世账户
 1. `-s` 执行start，启动节点
 1. `-n` 启动节点个数(必须大于0，且小于100)
 1. `-p` 本地LAN IP，如果网络是单机运行可以忽略此选项（默认为`127.0.0.1`）
 
-### 端口
+### 2 端口
 每个节点有两个监听端口:rpc端口和p2p端口。
 
 端口计算公式如下:
@@ -19,17 +18,17 @@ cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
 * p2p端口: 1${node_id}{p2p_port}
 
 比如:
-* node_id是个0-99之间的两位整数，表示一个节点id
+* node_id是个0-99之间的整数，表示一个节点id
 * p2p_port是56
 * rpc_port是57
 * seed node id 为0，它的两个端口分别是10056,10057
 * 节点id为1的节点两个端口分别就是10156,10157
 
-### 浏览器查询节点状态
+### 3 浏览器查询节点状态
 访问这个地址可以查询指定节点的状态信息
 http://${node_ip_address}:${rpc_port}
 
-比如访问 http://localhost:10057:
+比如 http://localhost:10057:
 ```$xslt
 Available endpoints:
 
@@ -61,18 +60,11 @@ Endpoints that require arguments:
 
 ```
 
-### 新节点加入
+### 4 新节点加入
 
-#### 若seed node在本地机器运行
 ```sh
 cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
-./addnewnode.sh -n ${node_id}
-```
-
-#### 若seed node不在本地机器运行
-```sh
-cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
-./addnewnode.sh -n ${node_id} -s 10ed9cb348b0b2f2f84ec76d6b815913deaa9cef@${seed_node_ip}:10056 -i ${IP}
+./addnode.sh -n ${node_id}
 ```
 
 #### 参数说明：
@@ -81,8 +73,13 @@ cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
  1. `-i` 本地LAN IP，如果网络是单机运行可以忽略此选项（默认为`127.0.0.1`）
  
 
-#### 新加入的节点vote power均为0
+#### 新加入的节点为fullnode，voting power均为0
+需要执行```newvalidator.sh```成为validator
 
-
-## 
-* 基础货币stake
+###  网络环境搭建步骤
+* 用init指定不同的home生成Genesis文件模板和多个home dir
+* 生成多个创世账户
+* 基于创世账户生成多个validator
+* 生成创世tx(create validator)
+* 把创世tx放在launch目录下的gentx里
+* 运行launch生成最终的创世块文件

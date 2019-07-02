@@ -16,14 +16,18 @@ ${CLI_NAME} query staking validators ${CLI_HOME} --chain-id testchain ${CHAIN_NO
 for ((index=0; index<10; index++)) do
     if [ -d cache/node${index} ]; then
         echo "=============dump node${index} validator info================="
+        echo "node-id:"
         gaiad tendermint show-node-id --home cache/node${index}/gaiad
+        echo "Validator Consensus Pubkey:"
         gaiad tendermint show-validator --home cache/node${index}/gaiad
+        echo "Validator address"
         gaiad tendermint show-address --home cache/node${index}/gaiad
+        echo "Delegater address"
         gaiacli keys show node${index} -a --home cache/node${index}/gaiacli
+        echo "Operator Address:"
         gaiacli keys show node${index} --bech val -a --home cache/node${index}/gaiacli
+        echo "bech cons address:"
         gaiacli keys show node${index} --bech cons -a --home cache/node${index}/gaiacli
-
-        echo ""
     fi
 done
 
