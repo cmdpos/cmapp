@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+./killbyname.sh "nsd start"
 
-rm -rf ~/.ns*
+rm -rf ~/.nsd
+rm -rf ~/.nscli
 
 # Initialize configuration files and genesis file
 nsd init --chain-id testchain
@@ -22,9 +24,14 @@ nsd add-genesis-account $(nscli keys show alice -a) 1000mycoin,1000alicecoin
 
 # Configure your CLI to eliminate need for chain-id flag
 nscli config chain-id testchain
-nscli config output json
+#nscli config output json
 nscli config indent true
 nscli config trust-node true
 
 ln -svnf ~/.nsd _nsd
 ln -svnf ~/.nscli _nscli
+
+sleep 1
+./start.sh
+sleep 1
+tail -f _nsd/nsd.log
