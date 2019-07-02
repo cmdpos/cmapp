@@ -35,6 +35,10 @@ install:
 	CGO_LDFLAGS="-lsnappy" go install -v $(BUILD_FLAGS) -tags "$(BUILD_TAGS) gcc" ./cmd/gaia/cmd/gaiacli
 
 
+installnsd:
+	go install ./cmd/nsd
+	go install ./cmd/nscli
+
 format:
 	find . -name '*.go' -type f -not -path "./vendor*" -not -path "*.git*" -not -path "./client/lcd/statik/statik.go" | xargs gofmt -w -s
 

@@ -226,7 +226,7 @@ func DefaultBaseConfig() BaseConfig {
 		ProfListenAddress:  "localhost:6060",
 		FastSync:           true,
 		FilterPeers:        false,
-		DBBackend:          "cleveldb",
+		DBBackend:          "leveldb",
 		DBPath:             "data",
 	}
 }
