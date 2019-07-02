@@ -14,16 +14,16 @@ CHAIN_NODE="--node tcp://localhost:10057"
 printf "node${1}\n"
 echo "==================================="
 
-${BIN_CLI_NAME} query account $(${BIN_CLI_NAME} keys show node${1} -a ${CHAIN_HOME}) ${CHAIN_ENV0}
+gaiacli query account $(gaiacli keys show node${1} -a ${CHAIN_HOME}) ${CHAIN_ENV0}
 
 echo "==================================="
-${BIN_CLI_NAME} query distr params ${CHAIN_ENV0}
+gaiacli query distr params ${CHAIN_ENV0}
 echo "==================================="
 
-${BIN_CLI_NAME} query distr validator-outstanding-rewards ${CHAIN_NODE} --chain-id testchain
+gaiacli query distr validator-outstanding-rewards ${CHAIN_NODE} --chain-id testchain
 echo "==================================="
 
-${BIN_CLI_NAME} query distr commission $(${BIN_CLI_NAME} keys show node${1} --bech val -a ${CHAIN_HOME}) ${CHAIN_ENV0} --chain-id testchain
+gaiacli query distr commission $(gaiacli keys show node${1} --bech val -a ${CHAIN_HOME}) ${CHAIN_ENV0} --chain-id testchain
 echo "==================================="
 
-${BIN_CLI_NAME} query distr rewards $(${BIN_CLI_NAME} keys show node${1} -a ${CHAIN_HOME}) ${CHAIN_NODE} --chain-id testchain
+gaiacli query distr rewards $(gaiacli keys show node${1} -a ${CHAIN_HOME}) ${CHAIN_NODE} --chain-id testchain

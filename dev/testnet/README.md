@@ -83,3 +83,16 @@ cd $GOPATH/src/github.com/cmdpos/cmapp/dev/testnet
 * 生成创世tx(create validator)
 * 把创世tx放在launch目录下的gentx里
 * 运行launch生成最终的创世块文件
+
+## offering
+* 提供一套shell部署脚本(一个命令部署cosmos私链)
+* 提供上述脚本对应的cosmos和tendermint的源代码(针对部署脚本有少量修改)
+* 提供一个简单的demo开发例子
+* 提供以下功能的文档和具体操作命令示例
+    * 以Validator节点的身份加入网络
+    * 发行货币
+    * 转账
+    * 向Validator质押货币成为delegator
+    * 获取分红奖励
+    * 取消质押
+* 当面操作demo以上命令

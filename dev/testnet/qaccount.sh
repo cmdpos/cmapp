@@ -5,7 +5,6 @@ CUR_DIR=`pwd`
 
 COSMOS_TOP=${GOPATH}/src/github.com/cmdpos/cmapp
 
-
 CHAIN_NODE="--node tcp://localhost:10057"
 
 query_account() {
