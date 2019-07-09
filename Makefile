@@ -39,6 +39,10 @@ installnsd:
 	go install ./cmd/nsd
 	go install ./cmd/nscli
 
+install2:
+	go install ./cmd/gaia/cmd/gaiad
+	go install ./cmd/gaia/cmd/gaiacli
+
 format:
 	find . -name '*.go' -type f -not -path "./vendor*" -not -path "*.git*" -not -path "./client/lcd/statik/statik.go" | xargs gofmt -w -s
 
