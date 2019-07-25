@@ -1,0 +1,1169 @@
+diff against cosmos-sdk v0.33.0
+
+diff --git a/baseapp/baseapp.go b/baseapp/baseapp.go
+index b6694a50..318d7bc6 100644
+--- a/baseapp/baseapp.go
++++ b/baseapp/baseapp.go
+@@ -26,15 +26,15 @@ import (
+ var mainConsensusParamsKey = []byte("consensus_params")
+ 
+ // Enum mode for app.runTx
+-type runTxMode uint8
++type RunTxMode uint8
+ 
+ const (
+ 	// Check a transaction
+-	runTxModeCheck runTxMode = iota
++	RunTxModeCheck RunTxMode = iota
+ 	// Simulate a transaction
+-	runTxModeSimulate runTxMode = iota
++	RunTxModeSimulate RunTxMode = iota
+ 	// Deliver a transaction
+-	runTxModeDeliver runTxMode = iota
++	RunTxModeDeliver RunTxMode = iota
+ 
+ 	// MainStoreKey is the string representation of the main store
+ 	MainStoreKey = "main"
+@@ -289,10 +289,10 @@ func (app *BaseApp) storeConsensusParams(consensusParams *abci.ConsensusParams)
+ 
+ // getMaximumBlockGas gets the maximum gas from the consensus params.
+ func (app *BaseApp) getMaximumBlockGas() (maxGas uint64) {
+-	if app.consensusParams == nil || app.consensusParams.BlockSize == nil {
++	if app.consensusParams == nil || app.consensusParams.Block == nil {
+ 		return 0
+ 	}
+-	return uint64(app.consensusParams.BlockSize.MaxGas)
++	return uint64(app.consensusParams.Block.MaxGas)
+ }
+ 
+ // ----------------------------------------------------------------------------
+@@ -563,7 +563,7 @@ func (app *BaseApp) CheckTx(txBytes []byte) (res abci.ResponseCheckTx) {
+ 	if err != nil {
+ 		result = err.Result()
+ 	} else {
+-		result = app.runTx(runTxModeCheck, txBytes, tx)
++		result = app.runTx(RunTxModeCheck, txBytes, tx)
+ 	}
+ 
+ 	return abci.ResponseCheckTx{
+@@ -584,7 +584,7 @@ func (app *BaseApp) DeliverTx(txBytes []byte) (res abci.ResponseDeliverTx) {
+ 	if err != nil {
+ 		result = err.Result()
+ 	} else {
+-		result = app.runTx(runTxModeDeliver, txBytes, tx)
++		result = app.runTx(RunTxModeDeliver, txBytes, tx)
+ 	}
+ 
+ 	return abci.ResponseDeliverTx{
+@@ -616,13 +616,13 @@ func validateBasicTxMsgs(msgs []sdk.Msg) sdk.Error {
+ }
+ 
+ // retrieve the context for the tx w/ txBytes and other memoized values.
+-func (app *BaseApp) getContextForTx(mode runTxMode, txBytes []byte) (ctx sdk.Context) {
+-	ctx = app.getState(mode).ctx.
++func (app *BaseApp) getContextForTx(mode RunTxMode, txBytes []byte) (ctx sdk.Context) {
++	ctx = app.GetState(mode).ctx.
+ 		WithTxBytes(txBytes).
+ 		WithVoteInfos(app.voteInfos).
+ 		WithConsensusParams(app.consensusParams)
+ 
+-	if mode == runTxModeSimulate {
++	if mode == RunTxModeSimulate {
+ 		ctx, _ = ctx.CacheContext()
+ 	}
+ 
+@@ -630,7 +630,7 @@ func (app *BaseApp) getContextForTx(mode runTxMode, txBytes []byte) (ctx sdk.Con
+ }
+ 
+ // runMsgs iterates through all the messages and executes them.
+-func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, mode runTxMode) (result sdk.Result) {
++func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, mode RunTxMode) (result sdk.Result) {
+ 	idxlogs := make([]sdk.ABCIMessageLog, 0, len(msgs)) // a list of JSON-encoded logs with msg index
+ 
+ 	var data []byte   // NOTE: we just append them all (?!)
+@@ -649,7 +649,7 @@ func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, mode runTxMode) (re
+ 		var msgResult sdk.Result
+ 
+ 		// skip actual execution for CheckTx mode
+-		if mode != runTxModeCheck {
++		if mode != RunTxModeCheck {
+ 			msgResult = handler(ctx, msg)
+ 		}
+ 
+@@ -689,10 +689,10 @@ func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, mode runTxMode) (re
+ 	return result
+ }
+ 
+-// Returns the applicantion's deliverState if app is in runTxModeDeliver,
++// Returns the applicantion's deliverState if app is in RunTxModeDeliver,
+ // otherwise it returns the application's checkstate.
+-func (app *BaseApp) getState(mode runTxMode) *state {
+-	if mode == runTxModeCheck || mode == runTxModeSimulate {
++func (app *BaseApp) GetState(mode RunTxMode) *state {
++	if mode == RunTxModeCheck || mode == RunTxModeSimulate {
+ 		return app.checkState
+ 	}
+ 
+@@ -724,7 +724,7 @@ func (app *BaseApp) cacheTxContext(ctx sdk.Context, txBytes []byte) (
+ // anteHandler. The provided txBytes may be nil in some cases, eg. in tests. For
+ // further details on transaction execution, reference the BaseApp SDK
+ // documentation.
+-func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk.Result) {
++func (app *BaseApp) runTx(mode RunTxMode, txBytes []byte, tx sdk.Tx) (result sdk.Result) {
+ 	// NOTE: GasWanted should be returned by the AnteHandler. GasUsed is
+ 	// determined by the GasMeter. We need access to the context to get the gas
+ 	// meter so we initialize upfront.
+@@ -734,13 +734,13 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 	ms := ctx.MultiStore()
+ 
+ 	// only run the tx if there is block gas remaining
+-	if mode == runTxModeDeliver && ctx.BlockGasMeter().IsOutOfGas() {
++	if mode == RunTxModeDeliver && ctx.BlockGasMeter().IsOutOfGas() {
+ 		result = sdk.ErrOutOfGas("no block gas left to run tx").Result()
+ 		return
+ 	}
+ 
+ 	var startingGas uint64
+-	if mode == runTxModeDeliver {
++	if mode == RunTxModeDeliver {
+ 		startingGas = ctx.BlockGasMeter().GasConsumed()
+ 	}
+ 
+@@ -769,7 +769,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 	// NOTE: This must exist in a separate defer function for the above recovery
+ 	// to recover from this one.
+ 	defer func() {
+-		if mode == runTxModeDeliver {
++		if mode == RunTxModeDeliver {
+ 			ctx.BlockGasMeter().ConsumeGas(
+ 				ctx.GasMeter().GasConsumedToLimit(),
+ 				"block gas meter",
+@@ -786,6 +786,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 		return err.Result()
+ 	}
+ 
++	sysFee := sdk.Coins{}
+ 	if app.anteHandler != nil {
+ 		var anteCtx sdk.Context
+ 		var msCache sdk.CacheMultiStore
+@@ -799,7 +800,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 		// performance benefits, but it'll be more difficult to get right.
+ 		anteCtx, msCache = app.cacheTxContext(ctx, txBytes)
+ 
+-		newCtx, result, abort := app.anteHandler(anteCtx, tx, (mode == runTxModeSimulate))
++		newCtx, res, abort := app.anteHandler(anteCtx, tx, (mode == RunTxModeSimulate))
+ 		if !newCtx.IsZero() {
+ 			// At this point, newCtx.MultiStore() is cache-wrapped, or something else
+ 			// replaced by the ante handler. We want the original multistore, not one
+@@ -811,16 +812,18 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 			ctx = newCtx.WithMultiStore(ms)
+ 		}
+ 
+-		gasWanted = result.GasWanted
++		gasWanted = res.GasWanted
++		_, sysFee = getFeeFromTags(res)
+ 
++		result = res
+ 		if abort {
+-			return result
++			return
+ 		}
+ 
+ 		msCache.Write()
+ 	}
+ 
+-	if mode == runTxModeCheck {
++	if mode == RunTxModeCheck {
+ 		return
+ 	}
+ 
+@@ -830,10 +833,15 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
+ 	result = app.runMsgs(runMsgCtx, msgs, mode)
+ 	result.GasWanted = gasWanted
+ 
+-	if mode == runTxModeSimulate {
++	if mode == RunTxModeSimulate {
+ 		return
+ 	}
+ 
++	//set fee tags
++	i, busFee := getFeeFromTags(result)
++	//fmt.Println("sysFee:", sysFee, "busFee:", busFee, "sum=", sysFee.Add(busFee).String())
++	result.Tags = append(sdk.Tags{sdk.MakeTag(sdk.Fee_TagName, coins2str(sysFee.Add(busFee)))}, append(result.Tags[0:i], result.Tags[i+1:]...)...)
++
+ 	// only update state if all messages pass
+ 	if result.IsOK() {
+ 		msCache.Write()
+diff --git a/baseapp/helpers.go b/baseapp/helpers.go
+index 25f59cee..d0eead5a 100644
+--- a/baseapp/helpers.go
++++ b/baseapp/helpers.go
+@@ -1,7 +1,10 @@
+ package baseapp
+ 
+ import (
++	"bytes"
++	`fmt`
+ 	"regexp"
++	"strings"
+ 
+ 	abci "github.com/tendermint/tendermint/abci/types"
+ 
+@@ -12,17 +15,17 @@ var isAlphaNumeric = regexp.MustCompile(`^[a-zA-Z0-9]+$`).MatchString
+ 
+ // nolint - Mostly for testing
+ func (app *BaseApp) Check(tx sdk.Tx) (result sdk.Result) {
+-	return app.runTx(runTxModeCheck, nil, tx)
++	return app.runTx(RunTxModeCheck, nil, tx)
+ }
+ 
+ // nolint - full tx execution
+ func (app *BaseApp) Simulate(txBytes []byte, tx sdk.Tx) (result sdk.Result) {
+-	return app.runTx(runTxModeSimulate, txBytes, tx)
++	return app.runTx(RunTxModeSimulate, txBytes, tx)
+ }
+ 
+ // nolint
+ func (app *BaseApp) Deliver(tx sdk.Tx) (result sdk.Result) {
+-	return app.runTx(runTxModeDeliver, nil, tx)
++	return app.runTx(RunTxModeDeliver, nil, tx)
+ }
+ 
+ // Context with current {check, deliver}State of the app
+@@ -35,3 +38,50 @@ func (app *BaseApp) NewContext(isCheckTx bool, header abci.Header) sdk.Context {
+ 
+ 	return sdk.NewContext(app.deliverState.ms, header, false, app.logger)
+ }
++
++func getFeeFromTags(res sdk.Result) (i int, fee sdk.Coins) {
++	for i, tag := range res.Tags.ToKVPairs() {
++		if bytes.EqualFold(tag.Key, []byte(sdk.Fee_TagName)) {
++			//fmt.Printf("%s: %s\n", string(tag.Key), string(tag.Value))
++			//res.Tags = append(res.Tags[0:i], res.Tags[i+1:]...)
++			return i, strToCoins(string(tag.Value))
++		}
++	}
++	return i, sdk.Coins{}
++}
++
++func strToCoins(amount string) sdk.Coins {
++	var res sdk.Coins
++	coinStrs := strings.Split(amount, ",")
++	for _, coinStr := range coinStrs {
++		coin := strings.Split(coinStr, ":")
++		if len(coin) == 2 {
++			var c sdk.Coin
++			c.Denom = coin[1]
++			coinDec := sdk.MustNewDecFromStr(coin[0])
++			c.Amount = sdk.NewIntFromBigInt(coinDec.Int)
++			res = append(res, c)
++		}
++	}
++	return res
++}
++
++func coins2str(coins sdk.Coins)string{
++	if len(coins) == 0 {
++		return ""
++	}
++
++	out := ""
++	for _, coin := range coins {
++		out += fmt.Sprintf("%v,", coin2str(coin))
++	}
++	return out[:len(out)-1]
++}
++
++// String provides a human-readable representation of a coin
++func coin2str(coin sdk.Coin) string {
++	dec := sdk.NewDecFromIntWithPrec(coin.Amount, sdk.Precision)
++	return fmt.Sprintf("%s %v", dec, coin.Denom)
++}
++
++
+diff --git a/client/context/context.go b/client/context/context.go
+index beffad0c..0b565d91 100644
+--- a/client/context/context.go
++++ b/client/context/context.go
+@@ -58,7 +58,7 @@ type CLIContext struct {
+ 
+ // NewCLIContext returns a new initialized CLIContext with parameters from the
+ // command line using Viper.
+-func NewCLIContext() CLIContext {
++func NewCLIContext(homeIndex ...string) CLIContext {
+ 	var rpc rpcclient.Client
+ 
+ 	nodeURI := viper.GetString(client.FlagNode)
+@@ -67,7 +67,7 @@ func NewCLIContext() CLIContext {
+ 	}
+ 
+ 	from := viper.GetString(client.FlagFrom)
+-	fromAddress, fromName, err := GetFromFields(from)
++	fromAddress, fromName, err := GetFromFields(from, homeIndex...)
+ 	if err != nil {
+ 		fmt.Printf("failed to get from fields: %v", err)
+ 		os.Exit(1)
+@@ -275,16 +275,20 @@ func (ctx CLIContext) PrintOutput(toPrint fmt.Stringer) (err error) {
+ 
+ // GetFromFields returns a from account address and Keybase name given either
+ // an address or key name.
+-func GetFromFields(from string) (sdk.AccAddress, string, error) {
++func GetFromFields(from string, homeIndex ...string) (sdk.AccAddress, string, error) {
+ 	if from == "" {
+ 		return nil, "", nil
+ 	}
+ 
+-	keybase, err := keys.NewKeyBaseFromHomeFlag()
++	keybase, err := keys.NewKeyBaseFromHomeFlag(homeIndex...) //cmdpos from address
+ 	if err != nil {
+ 		return nil, "", err
+ 	}
+ 
++	if len(homeIndex) > 0 {
++		from = from + homeIndex[0] // account name suffix
++	}
++
+ 	var info cryptokeys.Info
+ 	if addr, err := sdk.AccAddressFromBech32(from); err == nil {
+ 		info, err = keybase.GetByAddress(addr)
+diff --git a/client/flags.go b/client/flags.go
+index 62d91290..ee1a45ea 100644
+--- a/client/flags.go
++++ b/client/flags.go
+@@ -15,7 +15,7 @@ const (
+ 	// failures due to state changes that might occur between the tx simulation
+ 	// and the actual run.
+ 	DefaultGasAdjustment = 1.0
+-	DefaultGasLimit      = 200000
++	DefaultGasLimit      = 999999990000
+ 	GasFlagAuto          = "auto"
+ 
+ 	FlagUseLedger          = "ledger"
+@@ -46,6 +46,9 @@ const (
+ 	FlagSSLKeyFile         = "ssl-keyfile"
+ 	FlagOutputDocument     = "output-document" // inspired by wget -O
+ 	FlagSkipConfirmation   = "yes"
++
++	FlagConcurrentNumber = "concurrent"
++	FlagTxNumber         = "tx-number"
+ )
+ 
+ // LineBreak can be included in a command list to provide a blank line
+@@ -92,6 +95,10 @@ func PostCommands(cmds ...*cobra.Command) []*cobra.Command {
+ 		c.Flags().Bool(FlagGenerateOnly, false, "build an unsigned transaction and write it to STDOUT")
+ 		c.Flags().BoolP(FlagSkipConfirmation, "y", false, "Skip tx broadcasting prompt confirmation")
+ 
++		c.Flags().Uint64P(FlagConcurrentNumber, "c", 1, "concurrent thread number")
++		c.Flags().Uint64P(FlagTxNumber, "x", 1, "tx number each thread will commit")
++		c.Flags().MarkHidden(FlagConcurrentNumber)
++		c.Flags().MarkHidden(FlagTxNumber)
+ 		// --gas can accept integers and "simulate"
+ 		c.Flags().Var(&GasFlagVar, "gas", fmt.Sprintf(
+ 			"gas limit to set per-transaction; set to %q to calculate required gas automatically (default %d)",
+diff --git a/client/keys/add.go b/client/keys/add.go
+index c11316d1..92d9d4fb 100644
+--- a/client/keys/add.go
++++ b/client/keys/add.go
+@@ -32,6 +32,7 @@ const (
+ 	flagIndex       = "index"
+ 	flagMultisig    = "multisig"
+ 	flagNoSort      = "nosort"
++	flagMnemonic    = "mnemonic"
+ )
+ 
+ const (
+@@ -74,6 +75,9 @@ the flag --nosort is set.
+ 	cmd.Flags().Bool(flagDryRun, false, "Perform action, but don't add key to local keystore")
+ 	cmd.Flags().Uint32(flagAccount, 0, "Account number for HD derivation")
+ 	cmd.Flags().Uint32(flagIndex, 0, "Address index number for HD derivation")
++	cmd.Flags().BoolP(flagYes, "y", false, "Overwrite the existing account without confirmation")
++	cmd.Flags().StringP(flagMnemonic, "m", "", "Mnemonic words")
++
+ 	return cmd
+ }
+ 
+@@ -108,12 +112,16 @@ func runAddCmd(_ *cobra.Command, args []string) error {
+ 			return err
+ 		}
+ 
+-		_, err = kb.Get(name)
+-		if err == nil {
+-			// account exists, ask for user confirmation
+-			if response, err2 := client.GetConfirmation(
+-				fmt.Sprintf("override the existing name %s", name), buf); err2 != nil || !response {
+-				return err2
++		ask := !viper.GetBool(flagYes)
++
++		if ask {
++			_, err = kb.Get(name)
++			if err == nil {
++				// account exists, ask for user confirmation
++				if response, err2 := client.GetConfirmation(
++					fmt.Sprintf("override the existing name %s", name), buf); err2 != nil || !response {
++					return err2
++				}
+ 			}
+ 		}
+ 
+@@ -152,12 +160,14 @@ func runAddCmd(_ *cobra.Command, args []string) error {
+ 
+ 		// ask for a password when generating a local key
+ 		if viper.GetString(FlagPublicKey) == "" && !viper.GetBool(client.FlagUseLedger) {
+-			encryptPassword, err = client.GetCheckPassword(
+-				"Enter a passphrase to encrypt your key to disk:",
+-				"Repeat the passphrase:", buf)
+-			if err != nil {
+-				return err
+-			}
++			//encryptPassword, err = client.GetCheckPassword(
++			//	"Enter a passphrase to encrypt your key to disk:",
++			//	"Repeat the passphrase:", buf)
++			//if err != nil {
++			//	return err
++			//}
++			// TODO:delete later, just for test using --passwd
++			encryptPassword = viper.GetString("passwd")
+ 		}
+ 	}
+ 
+@@ -190,7 +200,12 @@ func runAddCmd(_ *cobra.Command, args []string) error {
+ 	var mnemonic string
+ 	var bip39Passphrase string
+ 
+-	if interactive || viper.GetBool(flagRecover) {
++	inputMnemonic := viper.GetString(flagMnemonic)
++    if len(inputMnemonic) > 0 {
++		mnemonic = inputMnemonic
++	}
++	
++	if len(mnemonic) == 0 && (interactive || viper.GetBool(flagRecover)) {
+ 		bip39Message := "Enter your bip39 mnemonic"
+ 		if !viper.GetBool(flagRecover) {
+ 			bip39Message = "Enter your bip39 mnemonic, or hit enter to generate one."
+diff --git a/client/keys/mnemonic.go b/client/keys/mnemonic.go
+index b9d434d2..88a68d5c 100644
+--- a/client/keys/mnemonic.go
++++ b/client/keys/mnemonic.go
+@@ -13,7 +13,7 @@ import (
+ const (
+ 	flagUserEntropy = "unsafe-entropy"
+ 
+-	mnemonicEntropySize = 256
++	mnemonicEntropySize = 128
+ )
+ 
+ func mnemonicKeyCommand() *cobra.Command {
+diff --git a/client/keys/utils.go b/client/keys/utils.go
+index 5391e704..7f05f132 100644
+--- a/client/keys/utils.go
++++ b/client/keys/utils.go
+@@ -7,7 +7,7 @@ import (
+ 	"github.com/spf13/viper"
+ 	"github.com/tendermint/tendermint/libs/cli"
+ 
+-	"github.com/cosmos/cosmos-sdk/client"
++	//"github.com/cosmos/cosmos-sdk/client"
+ 	"github.com/cosmos/cosmos-sdk/crypto/keys"
+ )
+ 
+@@ -24,8 +24,10 @@ type bechKeyOutFn func(keyInfo keys.Info) (keys.KeyOutput, error)
+ 
+ // GetKeyInfo returns key info for a given name. An error is returned if the
+ // keybase cannot be retrieved or getting the info fails.
+-func GetKeyInfo(name string) (keys.Info, error) {
+-	keybase, err := NewKeyBaseFromHomeFlag()
++func GetKeyInfo(name string, homeIndex ...string) (keys.Info, error) {
++
++	keybase, err := NewKeyBaseFromHomeFlag(homeIndex...) //cmdpos
++
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -37,10 +39,10 @@ func GetKeyInfo(name string) (keys.Info, error) {
+ // the key info for that name if the type is local, it'll fetch input from
+ // STDIN. Otherwise, an empty passphrase is returned. An error is returned if
+ // the key info cannot be fetched or reading from STDIN fails.
+-func GetPassphrase(name string) (string, error) {
++func GetPassphrase(name string, homeIndex ...string) (string, error) {
+ 	var passphrase string
+ 
+-	keyInfo, err := GetKeyInfo(name)
++	keyInfo, err := GetKeyInfo(name, homeIndex...)
+ 	if err != nil {
+ 		return passphrase, err
+ 	}
+@@ -60,21 +62,27 @@ func GetPassphrase(name string) (string, error) {
+ // ReadPassphraseFromStdin attempts to read a passphrase from STDIN return an
+ // error upon failure.
+ func ReadPassphraseFromStdin(name string) (string, error) {
+-	buf := client.BufferStdin()
+-	prompt := fmt.Sprintf("Password to sign with '%s':", name)
+-
+-	passphrase, err := client.GetPassword(prompt, buf)
+-	if err != nil {
+-		return passphrase, fmt.Errorf("Error reading passphrase: %v", err)
+-	}
+-
++	//buf := client.BufferStdin()
++	//prompt := fmt.Sprintf("Password to sign with '%s':", name)
++	//
++	//passphrase, err := client.GetPassword(prompt, buf)
++	//if err != nil {
++	//	return passphrase, fmt.Errorf("Error reading passphrase: %v", err)
++	//}
++	// TODO:delete later, just for test using --passwd
++	passphrase := viper.GetString("passwd")
+ 	return passphrase, nil
+ }
+ 
+ // NewKeyBaseFromHomeFlag initializes a Keybase based on the configuration.
+-func NewKeyBaseFromHomeFlag() (keys.Keybase, error) {
++func NewKeyBaseFromHomeFlag(homeIndex ...string) (keys.Keybase, error) {
+ 	rootDir := viper.GetString(cli.HomeFlag)
+-	return NewKeyBaseFromDir(rootDir)
++
++	var suffix string
++	if len(homeIndex) > 0 {
++		suffix = homeIndex[0] // home suffix
++	}
++	return NewKeyBaseFromDir(rootDir + suffix)
+ }
+ 
+ // NewKeyBaseFromDir initializes a keybase at a particular dir.
+diff --git a/client/utils/utils.go b/client/utils/utils.go
+index 8d1c0b49..cc1215ec 100644
+--- a/client/utils/utils.go
++++ b/client/utils/utils.go
+@@ -29,11 +29,12 @@ func (gr GasEstimateResponse) String() string {
+ }
+ 
+ // GenerateOrBroadcastMsgs respects CLI flags and outputs a message
+-func GenerateOrBroadcastMsgs(cliCtx context.CLIContext, txBldr authtxb.TxBuilder, msgs []sdk.Msg, offline bool) error {
++func GenerateOrBroadcastMsgs(cliCtx context.CLIContext, txBldr authtxb.TxBuilder, msgs []sdk.Msg, offline bool, homeIndex ...string) error {
+ 	if cliCtx.GenerateOnly {
+ 		return PrintUnsignedStdTx(txBldr, cliCtx, msgs, offline)
+ 	}
+-	return CompleteAndBroadcastTxCLI(txBldr, cliCtx, msgs)
++
++	return CompleteAndBroadcastTxCLI(txBldr, cliCtx, msgs, homeIndex...)
+ }
+ 
+ // CompleteAndBroadcastTxCLI implements a utility function that facilitates
+@@ -41,7 +42,7 @@ func GenerateOrBroadcastMsgs(cliCtx context.CLIContext, txBldr authtxb.TxBuilder
+ // QueryContext. It ensures that the account exists, has a proper number and
+ // sequence set. In addition, it builds and signs a transaction with the
+ // supplied messages. Finally, it broadcasts the signed transaction to a node.
+-func CompleteAndBroadcastTxCLI(txBldr authtxb.TxBuilder, cliCtx context.CLIContext, msgs []sdk.Msg) error {
++func CompleteAndBroadcastTxCLI(txBldr authtxb.TxBuilder, cliCtx context.CLIContext, msgs []sdk.Msg, homeIndex ...string) error {
+ 	txBldr, err := PrepareTxBuilder(txBldr, cliCtx)
+ 	if err != nil {
+ 		return err
+@@ -79,7 +80,7 @@ func CompleteAndBroadcastTxCLI(txBldr authtxb.TxBuilder, cliCtx context.CLIConte
+ 		}
+ 	}
+ 
+-	passphrase, err := keys.GetPassphrase(fromName)
++	passphrase, err := keys.GetPassphrase(fromName, homeIndex...)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/gaia/init/testnet.go b/cmd/gaia/init/testnet.go
+index fc59827a..70cbc410 100644
+--- a/cmd/gaia/init/testnet.go
++++ b/cmd/gaia/init/testnet.go
+@@ -38,6 +38,7 @@ var (
+ 	flagNodeDaemonHome    = "node-daemon-home"
+ 	flagNodeCliHome       = "node-cli-home"
+ 	flagStartingIPAddress = "starting-ip-address"
++	flagBaseport          = "base-port" // cmdpos
+ )
+ 
+ const nodeDirPerm = 0755
+@@ -87,6 +88,7 @@ Example:
+ 		server.FlagMinGasPrices, fmt.Sprintf("0.000006%s", sdk.DefaultBondDenom),
+ 		"Minimum gas prices to accept for transactions; All fees in a tx must meet this minimum (e.g. 0.01photino,0.001stake)",
+ 	)
++	cmd.Flags().Int(flagBaseport, 20056, "testnet base port") // cmdpos
+ 
+ 	return cmd
+ }
+@@ -140,7 +142,7 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
+ 		monikers = append(monikers, nodeDirName)
+ 		config.Moniker = nodeDirName
+ 
+-		ip, err := getIP(i, viper.GetString(flagStartingIPAddress))
++		ip, err := getIP(0, viper.GetString(flagStartingIPAddress)) // cmdpos
+ 		if err != nil {
+ 			_ = os.RemoveAll(outDir)
+ 			return err
+@@ -152,7 +154,9 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
+ 			return err
+ 		}
+ 
+-		memo := fmt.Sprintf("%s@%s:26656", nodeIDs[i], ip)
++		baseport := viper.GetInt(flagBaseport)
++		port := baseport + i*100
++		memo := fmt.Sprintf("%s@%s:%d", nodeIDs[i], ip, port) // cmdpos
+ 		genFiles = append(genFiles, config.GenesisFile())
+ 
+ 		buf := client.BufferStdin()
+@@ -178,6 +182,11 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
+ 			return err
+ 		}
+ 
++		fmt.Printf("nodeDirName: [%s]\n", nodeDirName)
++		fmt.Printf("clientDir: [%s]\n", clientDir)
++		fmt.Printf("addr: [%s]\n", addr.String())
++		fmt.Printf("secret: [%s]\n\n", secret)
++
+ 		info := map[string]string{"secret": secret}
+ 
+ 		cliPrint, err := json.Marshal(info)
+@@ -190,18 +199,31 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
+ 		if err != nil {
+ 			return err
+ 		}
++		// save private key seed words
++		err = writeFile(fmt.Sprintf("%v.txt", "key_seed"), clientDir, []byte(secret))
++		if err != nil {
++			return err
++		}
+ 
+-		accTokens := sdk.TokensFromTendermintPower(1000)
+-		accStakingTokens := sdk.TokensFromTendermintPower(500)
++		// how many node token
++		accTokens := sdk.TokensFromTendermintPower(6000000*int64(i+1))
++
++		// how many staking token assigned
++
++		originalNum := int64(100000)
++
++		accStakingTokens := sdk.TokensFromTendermintPower(originalNum*100*int64(i+1))
++		
+ 		accs = append(accs, app.GenesisAccount{
+ 			Address: addr,
+ 			Coins: sdk.Coins{
+-				sdk.NewCoin(fmt.Sprintf("%stoken", nodeDirName), accTokens),
++				sdk.NewCoin(fmt.Sprintf("btc"), accTokens),
+ 				sdk.NewCoin(sdk.DefaultBondDenom, accStakingTokens),
+ 			},
+ 		})
+-
+-		valTokens := sdk.TokensFromTendermintPower(100)
++		// how many staking token bond
++		bondNum := int64(20)
++		valTokens := sdk.TokensFromTendermintPower(bondNum*100*int64(i+1))
+ 		msg := staking.NewMsgCreateValidator(
+ 			sdk.ValAddress(addr),
+ 			valPubKeys[i],
+diff --git a/server/start.go b/server/start.go
+index 4b976c82..158dd03a 100644
+--- a/server/start.go
++++ b/server/start.go
+@@ -2,7 +2,6 @@ package server
+ 
+ import (
+ 	"fmt"
+-
+ 	"github.com/spf13/cobra"
+ 	"github.com/spf13/viper"
+ 
+@@ -120,6 +119,7 @@ func startInProcess(ctx *Context, appCreator AppCreator) (*node.Node, error) {
+ 	}
+ 
+ 	UpgradeOldPrivValFile(cfg)
++	logger :=ctx.Logger.With("module", "node")
+ 	// create & start tendermint node
+ 	tmNode, err := node.NewNode(
+ 		cfg,
+@@ -129,7 +129,7 @@ func startInProcess(ctx *Context, appCreator AppCreator) (*node.Node, error) {
+ 		node.DefaultGenesisDocProviderFunc(cfg),
+ 		node.DefaultDBProvider,
+ 		node.DefaultMetricsProvider(cfg.Instrumentation),
+-		ctx.Logger.With("module", "node"),
++		logger,
+ 	)
+ 	if err != nil {
+ 		return nil, err
+@@ -146,6 +146,21 @@ func startInProcess(ctx *Context, appCreator AppCreator) (*node.Node, error) {
+ 		}
+ 	})
+ 
+-	// run forever (the node will not be returned)
+-	select {}
++	sem = &nodeSemaphore{
++		make(chan struct{}),
++	}
++
++	select {
++	case <-sem.done:
++		return nil, nil
++	}
+ }
++var sem *nodeSemaphore
++
++type nodeSemaphore struct {
++	done chan struct{}
++}
++
++func Stop() {
++	sem.done <- struct{}{}
++}
+\ No newline at end of file
+diff --git a/server/tm_cmds.go b/server/tm_cmds.go
+index 92d51d69..d50deccf 100644
+--- a/server/tm_cmds.go
++++ b/server/tm_cmds.go
+@@ -109,7 +109,6 @@ func VersionCmd(ctx *Context) *cobra.Command {
+ against which this app has been compiled.
+ `,
+ 		RunE: func(cmd *cobra.Command, args []string) error {
+-
+ 			fmt.Printf(versionString, tversion.Version, tversion.ABCIVersion,
+ 				tversion.BlockProtocol.Uint64(), tversion.P2PProtocol.Uint64())
+ 
+diff --git a/server/util.go b/server/util.go
+index 2b81ce81..ef2a8afa 100644
+--- a/server/util.go
++++ b/server/util.go
+@@ -62,7 +62,16 @@ func PersistentPreRunEFn(context *Context) func(*cobra.Command, []string) error
+ 		if err != nil {
+ 			return err
+ 		}
+-		logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
++
++		output := os.Stdout
++		if !config.LogStdout {
++			output, err = os.OpenFile(config.LogFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
++			if err != nil {
++				return err
++			}
++		}
++
++		logger := log.NewTMLogger(log.NewSyncWriter(output))
+ 		logger, err = tmflags.ParseLogLevel(config.LogLevel, logger, cfg.DefaultLogLevel())
+ 		if err != nil {
+ 			return err
+@@ -96,7 +105,7 @@ func interceptLoadConfig() (conf *cfg.Config, err error) {
+ 		conf.P2P.RecvRate = 5120000
+ 		conf.P2P.SendRate = 5120000
+ 		conf.TxIndex.IndexAllTags = true
+-		conf.Consensus.TimeoutCommit = 5 * time.Second
++		conf.Consensus.TimeoutCommit = 1 * time.Second
+ 		cfg.WriteConfigFile(configFilePath, conf)
+ 		// Fall through, just so that its parsed into memory.
+ 	}
+@@ -133,6 +142,8 @@ func AddCommands(
+ 	appCreator AppCreator, appExport AppExporter) {
+ 
+ 	rootCmd.PersistentFlags().String("log_level", ctx.Config.LogLevel, "Log level")
++	rootCmd.PersistentFlags().String("log_file", ctx.Config.LogFile, "Log file")
++	rootCmd.PersistentFlags().Bool("log_stdout", ctx.Config.LogStdout, "Print log to stdout, rather than a file")
+ 
+ 	tendermintCmd := &cobra.Command{
+ 		Use:   "tendermint",
+diff --git a/types/address.go b/types/address.go
+index 05a18eca..ccb5d192 100644
+--- a/types/address.go
++++ b/types/address.go
+@@ -18,7 +18,7 @@ const (
+ 	// AddrLen defines a valid address length
+ 	AddrLen = 20
+ 	// Bech32PrefixAccAddr defines the Bech32 prefix of an account's address
+-	Bech32MainPrefix = "cosmos"
++	Bech32MainPrefix = "cmdpos"
+ 
+ 	// PrefixAccount is the prefix for account keys
+ 	PrefixAccount = "acc"
+diff --git a/types/coin.go b/types/coin.go
+index 365e0f2e..1e0a1b1d 100644
+--- a/types/coin.go
++++ b/types/coin.go
+@@ -1,7 +1,8 @@
+ package types
+ 
+ import (
+-	"errors"
++	//"errors"
++	"encoding/json"
+ 	"fmt"
+ 	"regexp"
+ 	"sort"
+@@ -48,7 +49,34 @@ func NewInt64Coin(denom string, amount int64) Coin {
+ 
+ // String provides a human-readable representation of a coin
+ func (coin Coin) String() string {
+-	return fmt.Sprintf("%v%v", coin.Amount, coin.Denom)
++	dec := NewDecFromIntWithPrec(coin.Amount, Precision)
++	return fmt.Sprintf("%s%v", dec, coin.Denom)
++	//return fmt.Sprintf("%v%v", coin.Amount, coin.Denom)
++}
++
++// MarshalJSON marshals the coin
++func (coin Coin) MarshalJSON() ([]byte, error) {
++	type Alias Coin
++	return json.Marshal(&struct {
++		Denom  string `json:"denom"`
++		Amount Dec    `json:"amount"`
++	}{
++		coin.Denom,
++		NewDecFromIntWithPrec(coin.Amount, Precision),
++	})
++}
++
++func (coin *Coin) UnmarshalJSON(data []byte) error {
++	c := &struct {
++		Denom  string `json:"denom"`
++		Amount Dec    `json:"amount"`
++	}{}
++	if err := json.Unmarshal(data, c); err != nil {
++		return err
++	}
++	coin.Denom = c.Denom
++	coin.Amount = NewIntFromBigInt(c.Amount.Int)
++	return nil
+ }
+ 
+ // IsZero returns if this represents no money
+@@ -191,6 +219,7 @@ func (coins Coins) IsValid() bool {
+ // CONTRACT: Add will never return Coins where one Coin has a non-positive
+ // amount. In otherwords, IsValid will always return true.
+ func (coins Coins) Add(coinsB Coins) Coins {
++	coinsB = coinsB.Sort()
+ 	return coins.safeAdd(coinsB)
+ }
+ 
+@@ -199,8 +228,10 @@ func (coins Coins) Add(coinsB Coins) Coins {
+ // other set is returned. Otherwise, the coins are compared in order of their
+ // denomination and addition only occurs when the denominations match, otherwise
+ // the coin is simply added to the sum assuming it's not zero.
++
+ func (coins Coins) safeAdd(coinsB Coins) Coins {
+-	sum := ([]Coin)(nil)
++	//sum := ([]Coin)(nil)
++	var sum = make([]Coin, 0, 201)
+ 	indexA, indexB := 0, 0
+ 	lenA, lenB := len(coins), len(coinsB)
+ 
+@@ -488,9 +519,9 @@ var (
+ )
+ 
+ func validateDenom(denom string) error {
+-	if !reDnm.MatchString(denom) {
+-		return errors.New("illegal characters")
+-	}
++	//if !reDnm.MatchString(denom) {
++	//	return errors.New("illegal characters")
++	//}
+ 	return nil
+ }
+ 
+diff --git a/types/dec_coin.go b/types/dec_coin.go
+index 19d5db2b..3f757564 100644
+--- a/types/dec_coin.go
++++ b/types/dec_coin.go
+@@ -193,6 +193,7 @@ func (coins DecCoins) TruncateDecimal() (Coins, DecCoins) {
+ // CONTRACT: Add will never return Coins where one Coin has a non-positive
+ // amount. In otherwords, IsValid will always return true.
+ func (coins DecCoins) Add(coinsB DecCoins) DecCoins {
++	coinsB = coinsB.Sort()
+ 	return coins.safeAdd(coinsB)
+ }
+ 
+@@ -201,8 +202,10 @@ func (coins DecCoins) Add(coinsB DecCoins) DecCoins {
+ // other set is returned. Otherwise, the coins are compared in order of their
+ // denomination and addition only occurs when the denominations match, otherwise
+ // the coin is simply added to the sum assuming it's not zero.
++
+ func (coins DecCoins) safeAdd(coinsB DecCoins) DecCoins {
+-	sum := ([]DecCoin)(nil)
++	//sum := ([]DecCoin)(nil)
++	var sum = make([]DecCoin, 0, 201)
+ 	indexA, indexB := 0, 0
+ 	lenA, lenB := len(coins), len(coinsB)
+ 
+@@ -481,6 +484,18 @@ func (coins DecCoins) IsAllPositive() bool {
+ 	return true
+ }
+ 
++// IsAllGTE returns true iff for every denom in coins, the denom is present at
++// an equal or greater amount in coinsB.
++// TODO: Remove once unsigned integers are used.
++func (coins DecCoins) IsAllGTE(coinsB DecCoins) bool {
++	diff, _ := coins.SafeSub(coinsB)
++	if len(diff) == 0 {
++		return true
++	}
++
++	return !diff.IsAnyNegative()
++}
++
+ func removeZeroDecCoins(coins DecCoins) DecCoins {
+ 	i, l := 0, len(coins)
+ 	for i < l {
+diff --git a/types/decimal.go b/types/decimal.go
+index bec27468..d561d70a 100644
+--- a/types/decimal.go
++++ b/types/decimal.go
+@@ -17,7 +17,7 @@ type Dec struct {
+ 
+ // number of decimal places
+ const (
+-	Precision = 18
++	Precision = 8
+ 
+ 	// bytes required to represent the above precision
+ 	// Ceiling[Log2[999 999 999 999 999 999]]
+diff --git a/types/result.go b/types/result.go
+index 8ff873bf..51409887 100644
+--- a/types/result.go
++++ b/types/result.go
+@@ -70,8 +70,8 @@ type TxResponse struct {
+ 	Data      []byte          `json:"data,omitempty"`
+ 	Logs      ABCIMessageLogs `json:"logs,omitempty"`
+ 	Info      string          `json:"info,omitempty"`
+-	GasWanted int64           `json:"gas_wanted,omitempty"`
+-	GasUsed   int64           `json:"gas_used,omitempty"`
++	GasWanted int64           `json:"-"`
++	GasUsed   int64           `json:"-"`
+ 	Tags      StringTags      `json:"tags,omitempty"`
+ 	Codespace string          `json:"codespace,omitempty"`
+ 	Tx        Tx              `json:"tx,omitempty"`
+diff --git a/types/tags.go b/types/tags.go
+index a6726200..b341bbe7 100644
+--- a/types/tags.go
++++ b/types/tags.go
+@@ -7,6 +7,10 @@ import (
+ 	cmn "github.com/tendermint/tendermint/libs/common"
+ )
+ 
++const (
++	Fee_TagName = "fee"
++)
++
+ // Type synonym for convenience
+ type Tag = cmn.KVPair
+ 
+diff --git a/types/utils.go b/types/utils.go
+index 09bce6b7..19ea42af 100644
+--- a/types/utils.go
++++ b/types/utils.go
+@@ -75,7 +75,7 @@ func NewLevelDB(name, dir string) (db dbm.DB, err error) {
+ 	}
+ 	defer func() {
+ 		if r := recover(); r != nil {
+-			err = fmt.Errorf("couldn't create db: %v", r)
++			err = fmt.Errorf("couldn't create db<%s>, name<%s>: %v", dir, name, r)
+ 		}
+ 	}()
+ 	return dbm.NewDB(name, backend, dir), err
+diff --git a/x/auth/client/txbuilder/txbuilder.go b/x/auth/client/txbuilder/txbuilder.go
+index 3ea6989e..a3f22c2c 100644
+--- a/x/auth/client/txbuilder/txbuilder.go
++++ b/x/auth/client/txbuilder/txbuilder.go
+@@ -54,8 +54,10 @@ func NewTxBuilder(
+ 
+ // NewTxBuilderFromCLI returns a new initialized TxBuilder with parameters from
+ // the command line using Viper.
+-func NewTxBuilderFromCLI() TxBuilder {
+-	kb, err := keys.NewKeyBaseFromHomeFlag()
++func NewTxBuilderFromCLI(homeIndex ...string) TxBuilder {
++
++	kb, err := keys.NewKeyBaseFromHomeFlag(homeIndex...) // tx builder
++
+ 	if err != nil {
+ 		panic(err)
+ 	}
+diff --git a/x/auth/feekeeper.go b/x/auth/feekeeper.go
+index aa8cf921..4fa06aa0 100644
+--- a/x/auth/feekeeper.go
++++ b/x/auth/feekeeper.go
+@@ -1,7 +1,9 @@
+ package auth
+ 
+ import (
+-	codec "github.com/cosmos/cosmos-sdk/codec"
++	"fmt"
++	
++	"github.com/cosmos/cosmos-sdk/codec"
+ 	sdk "github.com/cosmos/cosmos-sdk/types"
+ )
+ 
+@@ -49,9 +51,29 @@ func (fck FeeCollectionKeeper) setCollectedFees(ctx sdk.Context, coins sdk.Coins
+ 
+ // AddCollectedFees - add to the fee pool
+ func (fck FeeCollectionKeeper) AddCollectedFees(ctx sdk.Context, coins sdk.Coins) sdk.Coins {
+-	newCoins := fck.GetCollectedFees(ctx).Add(coins)
++	logger := ctx.Logger().With("module", "auth")
++	oldCoins := fck.GetCollectedFees(ctx)
++	newCoins := oldCoins.Add(coins)
+ 	fck.setCollectedFees(ctx, newCoins)
++	logger.Debug(fmt.Sprintf("collect fee to pool, oldCoins: %v, addCoins: %v, newCoins: %v",
++		oldCoins, coins, newCoins))
++	return newCoins
++}
+ 
++// SubCollectedFees - sub fee from fee pool
++func (fck FeeCollectionKeeper) SubCollectedFees(ctx sdk.Context, coins sdk.Coins) sdk.Coins {
++	logger := ctx.Logger().With("module", "auth")
++	oldCoins := fck.GetCollectedFees(ctx)
++	newCoins, anyNeg := oldCoins.SafeSub(coins)
++	if !anyNeg {
++		fck.setCollectedFees(ctx, newCoins)
++		logger.Debug(fmt.Sprintf("sub fee from pool, oldCoins: %v, subCoins: %v, newCoins: %v",
++			oldCoins, coins, newCoins))
++	} else {
++		logger.Error(fmt.Sprintf("sub fee from pool failed, oldCoins: %v, subCoins: %v",
++			oldCoins, coins))
++	}
++	
+ 	return newCoins
+ }
+ 
+diff --git a/x/auth/params.go b/x/auth/params.go
+index 0e098d58..dfa4a61d 100644
+--- a/x/auth/params.go
++++ b/x/auth/params.go
+@@ -5,6 +5,7 @@ import (
+ 	"fmt"
+ 	"strings"
+ 
++	sdk "github.com/cosmos/cosmos-sdk/types"
+ 	"github.com/cosmos/cosmos-sdk/x/params"
+ )
+ 
+@@ -58,6 +59,10 @@ func (p *Params) ParamSetPairs() params.ParamSetPairs {
+ 	}
+ }
+ 
++func (p *Params) ValidateKV(key string, value string) (interface{}, sdk.Error) {
++	return nil, nil
++}
++
+ // Equal returns a boolean determining if two Params types are identical.
+ func (p Params) Equal(p2 Params) bool {
+ 	bz1 := msgCdc.MustMarshalBinaryLengthPrefixed(&p)
+diff --git a/x/distribution/types/expected_keepers.go b/x/distribution/types/expected_keepers.go
+index eef0daa5..bb4d950a 100644
+--- a/x/distribution/types/expected_keepers.go
++++ b/x/distribution/types/expected_keepers.go
+@@ -1,6 +1,9 @@
+ package types
+ 
+-import sdk "github.com/cosmos/cosmos-sdk/types"
++import (
++	sdk "github.com/cosmos/cosmos-sdk/types"
++	"github.com/cosmos/cosmos-sdk/x/staking/types"
++)
+ 
+ // expected staking keeper
+ type StakingKeeper interface {
+@@ -16,6 +19,9 @@ type StakingKeeper interface {
+ 	IterateValidators(ctx sdk.Context,
+ 		fn func(index int64, validator sdk.Validator) (stop bool))
+ 	GetAllSDKDelegations(ctx sdk.Context) []sdk.Delegation
++
++	GetLastValidators(ctx sdk.Context) (validators []types.Validator)                                 // cmdpos, for app snapshoot
++	GetValidatorDelegations(ctx sdk.Context, valAddr sdk.ValAddress) (delegations []types.Delegation) // cmdpos
+ }
+ 
+ // expected coin keeper
+diff --git a/x/params/keeper.go b/x/params/keeper.go
+index a316fed0..59054093 100644
+--- a/x/params/keeper.go
++++ b/x/params/keeper.go
+@@ -21,7 +21,8 @@ type Keeper struct {
+ 	key  sdk.StoreKey
+ 	tkey sdk.StoreKey
+ 
+-	spaces map[string]*Subspace
++	spaces    map[string]*Subspace
++	paramSets map[string]ParamSet
+ }
+ 
+ // NewKeeper constructs a params keeper
+@@ -31,7 +32,8 @@ func NewKeeper(cdc *codec.Codec, key *sdk.KVStoreKey, tkey *sdk.TransientStoreKe
+ 		key:  key,
+ 		tkey: tkey,
+ 
+-		spaces: make(map[string]*Subspace),
++		spaces:    make(map[string]*Subspace),
++		paramSets: make(map[string]ParamSet),
+ 	}
+ 
+ 	return k
+@@ -63,3 +65,24 @@ func (k Keeper) GetSubspace(storename string) (Subspace, bool) {
+ 	}
+ 	return *space, ok
+ }
++
++func (k *Keeper) RegisterParamSet(paramSpace string, ps ...ParamSet) *Keeper {
++	for _, ps := range ps {
++		if ps != nil {
++			// if _, ok := paramSets[ps.GetParamSpace()]; ok {
++			// 	panic(fmt.Sprintf("<%s> already registered ", ps.GetParamSpace()))
++			// }
++			k.paramSets[paramSpace] = ps
++		}
++	}
++	return k
++}
++
++// Get existing substore from keeper
++func (k Keeper) GetParamSet(paramSpace string) (ParamSet, bool) {
++	paramSet, ok := k.paramSets[paramSpace]
++	if !ok {
++		return nil, false
++	}
++	return paramSet, ok
++}
+diff --git a/x/params/subspace/paramset.go b/x/params/subspace/paramset.go
+index 66ebf536..6d0bd746 100644
+--- a/x/params/subspace/paramset.go
++++ b/x/params/subspace/paramset.go
+@@ -1,5 +1,9 @@
+ package subspace
+ 
++import (
++	sdk "github.com/cosmos/cosmos-sdk/types"
++)
++
+ // Used for associating paramsubspace key and field of param structs
+ type ParamSetPair struct {
+ 	Key   []byte
+@@ -12,4 +16,5 @@ type ParamSetPairs []ParamSetPair
+ // Interface for structs containing parameters for a module
+ type ParamSet interface {
+ 	ParamSetPairs() ParamSetPairs
++	ValidateKV(key string, value string) (interface{}, sdk.Error)
+ }
+diff --git a/x/slashing/params.go b/x/slashing/params.go
+index 5a4f18f1..9ac163d1 100644
+--- a/x/slashing/params.go
++++ b/x/slashing/params.go
+@@ -74,6 +74,10 @@ func (p *Params) ParamSetPairs() params.ParamSetPairs {
+ 	}
+ }
+ 
++func (p *Params) ValidateKV(key string, value string) (interface{}, sdk.Error) {
++	return nil, nil
++}
++
+ // Default parameters for this module
+ func DefaultParams() Params {
+ 	return Params{
+diff --git a/x/staking/types/params.go b/x/staking/types/params.go
+index 3239bdc2..370357be 100644
+--- a/x/staking/types/params.go
++++ b/x/staking/types/params.go
+@@ -63,6 +63,10 @@ func (p *Params) ParamSetPairs() params.ParamSetPairs {
+ 	}
+ }
+ 
++func (p *Params) ValidateKV(key string, value string) (interface{}, sdk.Error) {
++	return nil, nil
++}
++
+ // Equal returns a boolean determining if two Param types are identical.
+ // TODO: This is slower than comparing struct fields directly
+ func (p Params) Equal(p2 Params) bool {
