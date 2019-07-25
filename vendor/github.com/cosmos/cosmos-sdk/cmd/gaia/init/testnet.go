@@ -109,8 +109,7 @@ func initTestnet(config *tmconfig.Config, cdc *codec.Codec) error {
 	valPubKeys := make([]crypto.PubKey, numValidators)
 
 	gaiaConfig := srvconfig.DefaultConfig()
-	gaiaConfig.MinGasPrices = ""
-		//viper.GetString(server.FlagMinGasPrices)
+	gaiaConfig.MinGasPrices = viper.GetString(server.FlagMinGasPrices)
 
 	var (
 		accs     []app.GenesisAccount
