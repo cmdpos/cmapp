@@ -11,7 +11,7 @@ valPubkey=$(gaiad tendermint show-validator --home cache/node${index}/gaiacli)
 
 gaiacli tx send $toAddr 10000000000stake --from=u3 --yes --chain-id testchain --node localhost:10057
 
-sleep 5
+sleep 10
 
 gaiacli tx staking create-validator --amount 2000000000stake \
     --pubkey ${valPubkey} \
